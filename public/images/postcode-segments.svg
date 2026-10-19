@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="560" height="220" viewBox="0 0 560 220" fill="none">
+  <rect width="560" height="220" rx="14" fill="#1A1B26"/>
+  <text x="28" y="36" fill="#EBC700" font-family="monospace" font-size="11" font-weight="600" letter-spacing="1.8">NIPOST 5-SEGMENT HIERARCHY · AA-99-H77-BB-55</text>
+  <g transform="translate(28, 56)">
+    <rect width="92" height="64" rx="9" fill="#232433" stroke="#EBC700" stroke-width="1.5"/>
+    <text x="46" y="40" text-anchor="middle" fill="#EBC700" font-family="monospace" font-size="22" font-weight="700">FC</text>
+    <text x="46" y="86" text-anchor="middle" fill="#F4F4F6" font-family="system-ui, sans-serif" font-size="12" font-weight="600">State</text>
+    <text x="46" y="104" text-anchor="middle" fill="#9A9CA8" font-family="monospace" font-size="10">2 alpha</text>
+
+    <rect x="103" width="92" height="64" rx="9" fill="#232433" stroke="#3A3C4E" stroke-width="1.5"/>
+    <text x="149" y="40" text-anchor="middle" fill="#FFFFFF" font-family="monospace" font-size="22" font-weight="700">01</text>
+    <text x="149" y="86" text-anchor="middle" fill="#F4F4F6" font-family="system-ui, sans-serif" font-size="12" font-weight="600">LGA</text>
+    <text x="149" y="104" text-anchor="middle" fill="#9A9CA8" font-family="monospace" font-size="10">2 numeric</text>
+
+    <rect x="206" width="104" height="64" rx="9" fill="#232433" stroke="#3A3C4E" stroke-width="1.5"/>
+    <text x="258" y="40" text-anchor="middle" fill="#FFFFFF" font-family="monospace" font-size="22" font-weight="700">A01</text>
+    <text x="258" y="86" text-anchor="middle" fill="#F4F4F6" font-family="system-ui, sans-serif" font-size="12" font-weight="600">District</text>
+    <text x="258" y="104" text-anchor="middle" fill="#9A9CA8" font-family="monospace" font-size="10">3 alphanum</text>
+
+    <rect x="321" width="92" height="64" rx="9" fill="#232433" stroke="#008753" stroke-width="1.5"/>
+    <text x="367" y="40" text-anchor="middle" fill="#32B87A" font-family="monospace" font-size="22" font-weight="700">KP</text>
+    <text x="367" y="86" text-anchor="middle" fill="#F4F4F6" font-family="system-ui, sans-serif" font-size="12" font-weight="600">Area</text>
+    <text x="367" y="104" text-anchor="middle" fill="#9A9CA8" font-family="monospace" font-size="10">2 alpha</text>
+
+    <rect x="424" width="80" height="64" rx="9" fill="#232433" stroke="#EBC700" stroke-width="1.5"/>
+    <text x="464" y="40" text-anchor="middle" fill="#EBC700" font-family="monospace" font-size="22" font-weight="700">27</text>
+    <text x="464" y="86" text-anchor="middle" fill="#F4F4F6" font-family="system-ui, sans-serif" font-size="12" font-weight="600">Unit</text>
+    <text x="464" y="104" text-anchor="middle" fill="#9A9CA8" font-family="monospace" font-size="10">2 numeric</text>
+  </g>
+  <line x1="28" y1="182" x2="532" y2="182" stroke="#2D2F3E" stroke-width="1"/>
+  <circle cx="34" cy="198" r="4" fill="#008753"/>
+  <text x="46" y="202" fill="#B9BAC6" font-family="system-ui, sans-serif" font-size="11.5">Canonical FCT public building reference · Resolved at Lookup Level 1 (L1)</text>
+</svg>

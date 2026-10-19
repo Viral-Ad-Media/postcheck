@@ -1,0 +1,22 @@
+# PostCheck by Viral Ad Media
+
+> Postcode-first address verification for Nigerian customer onboarding, built on the official NIPOST Postcode Gateway (https://api.postcode.gov.ng).
+
+PostCheck is a Nigerian onboarding and address verification web application built by Viral Ad Media for the "Built on Nigeria's Postcode" showcase series (Session 2: Identity, Banking & Payments), convened by the Federal Ministry of Communications, Innovation and Digital Economy and NIPOST.
+
+## Core Capabilities
+- **Segment-Aware Autocomplete (`GET /v1/search/autocomplete`)**: Guides users through Nigeria's 5-segment postcode format (`AA-99-H77-BB-55`) as they type.
+- **Level 1 Lookup (`GET /v1/lookup?code=...&level=1`)**: Confirms canonical postcode validity at Lookup Level 1 with zero credit cost and zero PII exposure.
+- **5-Segment Assembly (`POST /v1/assembly/assemble`)**: Normalizes State (`AA`), LGA (`99`), District (`H77`), Area (`BB`), and Building Unit (`55`) into canonical dashed (`FC-01-A01-KP-27`), spaced (`FC 01 A01 KP 27`), and compact (`FC01A01KP27`) representations.
+- **Automated 4-Check Acceptance Suite**: Executes live staging checks against the NIPOST sandbox dataset and exports redacted JSON verification evidence.
+
+## Site Map & Documentation Pages
+- [Live Verification Workspace](https://postcheck.viraladmedia.com/): Interactive NIPOST postcode capture, 5-part segment assembly, L1 verification, and the 4-check API test suite.
+- [Product Overview](https://postcheck.viraladmedia.com/overview): Executive summary, economic impact (N50bn to N80bn annual misdelivery cost in Nigeria), selection rubric alignment, session schedule, and FAQ.
+- [How It Works & Technical Architecture](https://postcheck.viraladmedia.com/how-it-works): Detailed breakdown of the 5-segment postcode anatomy, the 3-step KYC onboarding flow, and the L1–L5 graded lookup matrix.
+- [Industry Sectors & Onboarding Playbooks](https://postcheck.viraladmedia.com/sectors): Use cases across Identity & Onboarding, Banking & POS Agent Networks, Delivery & Logistics, Telecoms, Utilities, Retail, Property/Insurance/Health, and Emergency Response.
+- [Privacy, NDPA Compliance & Accessibility](https://postcheck.viraladmedia.com/privacy): Data minimization under the Nigeria Data Protection Act (NDPA) 2023, server-side API key isolation, verification scope boundaries, and WCAG accessibility commitments.
+
+## Official NIPOST References
+- [NIPOST Developer Documentation](https://docs.postcode.gov.ng/)
+- [Built on Nigeria's Postcode Programme](https://pitch.postcode.gov.ng/)

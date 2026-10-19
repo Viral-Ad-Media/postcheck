@@ -1,12 +1,121 @@
-export type Operation = 'search' | 'lookup' | 'assemble' | 'bad-postcode';
-export type Result = { operation: Operation; ok: boolean; status: number; upstreamStatus: number | null; durationMs: number; at: string; data?: Record<string, unknown>; error?: {code: string; message: string}; source: 'nipost' | 'application' };
+export type Operation =
+  | 'search'
+  | 'lookup'
+  | 'assemble'
+  | 'disassemble'
+  | 'states'
+  | 'lgas'
+  | 'districts'
+  | 'areas'
+  | 'bad-postcode';
+
+export type Result = {
+  operation: Operation;
+  ok: boolean;
+  status: number;
+  upstreamStatus: number | null;
+  durationMs: number;
+  at: string;
+  data?: Record<string, unknown>;
+  error?: { code: string; message: string };
+  source: 'nipost' | 'application';
+};
+
+export type FormattedPostcode = {
+  canonical: string;
+  dashed: string;
+  display: string;
+  segments: {
+    state: string;
+    lga: string;
+    district: string;
+    area: string;
+    unit: string;
+  };
+};
+
 export const SAMPLE = 'FC-01-A01-KP-27';
-export const SEGMENTS = {state:'FC',lga:'01',district:'A01',area:'KP',unit:'27'};
-export function canonical(code: string) { return code.replace(/[ -]/g,'').toUpperCase(); }
+export const SEGMENTS = {
+  state: 'FC',
+  lga: '01',
+  district: 'A01',
+  area: 'KP',
+  unit: '27',
+};
+
+export const SAMPLE_BATCH = [
+  'FC-01-A01-KP-27',
+  'EK-01-A03-FK-01',
+  'LA-01-A01-AA-01',
+  'NOT-A-POSTCODE',
+];
+
+export function canonical(code: string) {
+  return code.replace(/[ -]/g, '').toUpperCase();
+}
+
+export function formatPostcode(raw: string): FormattedPostcode | null {
+  const clean = canonical(raw);
+  if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{3}[A-Z]{2}[0-9]{2}$/.test(clean)) {
+    return null;
+  }
+  const state = clean.slice(0, 2);
+  const lga = clean.slice(2, 4);
+  const district = clean.slice(4, 7);
+  const area = clean.slice(7, 9);
+  const unit = clean.slice(9, 11);
+  return {
+    canonical: clean,
+    dashed: `${state}-${lga}-${district}-${area}-${unit}`,
+    display: `${state} ${lga} ${district} ${area} ${unit}`,
+    segments: { state, lga, district, area, unit },
+  };
+}
+
 export function nextQuery(query: string, segment: string, suggestion: string) {
-  const code = canonical(suggestion); const index = ['state','lga','district','area','unit'].indexOf(segment);
-  const starts = [0,2,4,7,9]; const lengths = [2,2,3,2,2];
-  if(index < 0) return suggestion;
-  const prefix = canonical(query).slice(0,starts[index]);
+  const code = canonical(suggestion);
+  const index = ['state', 'lga', 'district', 'area', 'unit'].indexOf(segment);
+  const starts = [0, 2, 4, 7, 9];
+  const lengths = [2, 2, 3, 2, 2];
+  if (index < 0) return suggestion;
+  const prefix = canonical(query).slice(0, starts[index]);
   return code.length === lengths[index] ? prefix + code : code;
+}
+
+export function buildKycHandoffPayload(result: Result, fallbackCode: string) {
+  const rawCode =
+    typeof result.data?.postcode === 'string'
+      ? result.data.postcode
+      : fallbackCode;
+  const formatted = formatPostcode(rawCode);
+  return {
+    schema: 'postcheck.kyc.handoff.v1',
+    generatedAt: result.at,
+    postcode: {
+      dashed: formatted?.dashed ?? rawCode,
+      display: formatted?.display ?? rawCode,
+      compact: formatted?.canonical ?? canonical(rawCode),
+      segments: formatted?.segments ?? null,
+    },
+    verification: {
+      provider: 'NIPOST Postcode Gateway',
+      endpoint: '/v1/lookup?level=1',
+      level: 1,
+      valid: Boolean(result.data?.valid),
+      status: String(
+        result.data?.status ?? (result.data?.valid ? 'verified' : 'unverified')
+      ),
+      canonicalFormatVerified:
+        result.data?.valid === true || result.data?.status === 'not_found',
+      durationMs: result.durationMs,
+      upstreamStatus: result.upstreamStatus,
+    },
+    ndpaGovernance: {
+      piiCollected: false,
+      creditsConsumed: 0,
+      provesPersonalIdentity: false,
+      provesPhysicalOccupancy: false,
+      requiredDownstreamChecks: ['BVN_OR_NIN_IDENTITY', 'PROOF_OF_RESIDENCE'],
+    },
+  };
 }

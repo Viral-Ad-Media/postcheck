@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="200" viewBox="0 0 760 200" fill="none">
+  <rect width="760" height="200" rx="14" fill="#1A1B26"/>
+  <text x="28" y="34" fill="#EBC700" font-family="monospace" font-size="11" font-weight="600" letter-spacing="1.6">SERVER-ISOLATED NIPOST VERIFICATION BOUNDARY</text>
+
+  <g transform="translate(28, 54)">
+    <rect width="205" height="112" rx="10" fill="#232433" stroke="#3A3C4E" stroke-width="1.5"/>
+    <text x="18" y="30" fill="#EBC700" font-family="monospace" font-size="11" font-weight="600">01 · BROWSER CLIENT</text>
+    <text x="18" y="54" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="14" font-weight="600">Onboarding Form</text>
+    <text x="18" y="76" fill="#B9BAC6" font-family="system-ui, sans-serif" font-size="11.5">No secret key in bundle</text>
+    <text x="18" y="94" fill="#9A9CA8" font-family="monospace" font-size="10.5">POST /api/postcode</text>
+  </g>
+
+  <path d="M241 110 H269" stroke="#EBC700" stroke-width="2" stroke-linecap="round"/>
+  <path d="M264 105 L271 110 L264 115" stroke="#EBC700" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g transform="translate(277, 54)">
+    <rect width="205" height="112" rx="10" fill="#232433" stroke="#EBC700" stroke-width="1.5"/>
+    <text x="18" y="30" fill="#EBC700" font-family="monospace" font-size="11" font-weight="600">02 · NEXT.JS SERVER PROXY</text>
+    <text x="18" y="54" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="14" font-weight="600">Route Handler Guard</text>
+    <text x="18" y="76" fill="#B9BAC6" font-family="system-ui, sans-serif" font-size="11.5">Injects X-API-Key · 10s limit</text>
+    <text x="18" y="94" fill="#32B87A" font-family="monospace" font-size="10.5">Redacts echoed tokens</text>
+  </g>
+
+  <path d="M490 110 H518" stroke="#008753" stroke-width="2" stroke-linecap="round"/>
+  <path d="M513 105 L520 110 L513 115" stroke="#008753" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <g transform="translate(526, 54)">
+    <rect width="206" height="112" rx="10" fill="#232433" stroke="#008753" stroke-width="1.5"/>
+    <text x="18" y="30" fill="#32B87A" font-family="monospace" font-size="11" font-weight="600">03 · NIPOST GATEWAY</text>
+    <text x="18" y="54" fill="#FFFFFF" font-family="system-ui, sans-serif" font-size="14" font-weight="600">api.postcode.gov.ng</text>
+    <text x="18" y="76" fill="#B9BAC6" font-family="system-ui, sans-serif" font-size="11.5">Search · Lookup L1 · Assemble</text>
+    <text x="18" y="94" fill="#9A9CA8" font-family="monospace" font-size="10.5">Zero-credit L1 check</text>
+  </g>
+</svg>

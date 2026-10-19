@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#1A1B26"/>
+  <rect width="400" height="6" fill="#008753"/>
+  <rect x="400" width="400" height="6" fill="#EBC700"/>
+  <rect x="800" width="400" height="6" fill="#14141F"/>
+  <g transform="translate(80, 90)">
+    <rect width="54" height="54" rx="12" fill="#232433" stroke="#EBC700" stroke-opacity="0.4"/>
+    <rect x="12" y="14" width="30" height="4.5" rx="2.2" fill="#EBC700"/>
+    <rect x="16" y="21.5" width="22" height="4.5" rx="2.2" fill="#EBC700"/>
+    <rect x="19" y="29" width="16" height="4.5" rx="2.2" fill="#EBC700"/>
+    <circle cx="27" cy="42" r="3" fill="#008753"/>
+    <text x="72" y="35" fill="#F4F4F6" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="700">PostCheck by Viral Ad Media</text>
+  </g>
+  <text x="80" y="235" fill="#EBC700" font-family="monospace" font-size="18" font-weight="600" letter-spacing="3">BUILT ON NIGERIA'S POSTCODE · SESSION 2</text>
+  <text x="80" y="310" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="56" font-weight="600">A clearer address step for</text>
+  <text x="80" y="380" fill="#FFFFFF" font-family="system-ui, -apple-system, sans-serif" font-size="56" font-weight="600">Nigerian customer onboarding.</text>
+  <path d="M320 395 C 420 388, 520 388, 610 394" stroke="#EBC700" stroke-width="6" fill="none" stroke-linecap="round"/>
+  <g transform="translate(80, 445)">
+    <rect width="120" height="72" rx="10" fill="#232433" stroke="#EBC700" stroke-width="2"/>
+    <text x="60" y="45" text-anchor="middle" fill="#EBC700" font-family="monospace" font-size="28" font-weight="700">FC</text>
+    <text x="60" y="96" text-anchor="middle" fill="#9A9CA8" font-family="system-ui, sans-serif" font-size="14">STATE</text>
+
+    <rect x="136" width="120" height="72" rx="10" fill="#232433" stroke="#363848" stroke-width="1.5"/>
+    <text x="196" y="45" text-anchor="middle" fill="#FFFFFF" font-family="monospace" font-size="28" font-weight="700">01</text>
+    <text x="196" y="96" text-anchor="middle" fill="#9A9CA8" font-family="system-ui, sans-serif" font-size="14">LGA</text>
+
+    <rect x="272" width="140" height="72" rx="10" fill="#232433" stroke="#363848" stroke-width="1.5"/>
+    <text x="342" y="45" text-anchor="middle" fill="#FFFFFF" font-family="monospace" font-size="28" font-weight="700">A01</text>
+    <text x="342" y="96" text-anchor="middle" fill="#9A9CA8" font-family="system-ui, sans-serif" font-size="14">DISTRICT</text>
+
+    <rect x="428" width="120" height="72" rx="10" fill="#232433" stroke="#008753" stroke-width="2"/>
+    <text x="488" y="45" text-anchor="middle" fill="#32B87A" font-family="monospace" font-size="28" font-weight="700">KP</text>
+    <text x="488" y="96" text-anchor="middle" fill="#9A9CA8" font-family="system-ui, sans-serif" font-size="14">AREA</text>
+
+    <rect x="564" width="120" height="72" rx="10" fill="#232433" stroke="#EBC700" stroke-width="2"/>
+    <text x="624" y="45" text-anchor="middle" fill="#EBC700" font-family="monospace" font-size="28" font-weight="700">27</text>
+    <text x="624" y="96" text-anchor="middle" fill="#9A9CA8" font-family="system-ui, sans-serif" font-size="14">UNIT</text>
+  </g>
+</svg>
