@@ -14,7 +14,9 @@ PostCheck brings Nigeria's national digital postcode (NIPOST) into customer onbo
 | `/overview` | Static | Programme alignment, 4 evaluation criteria (25% each) + NDPA pass/fail gate, showcase schedule, and FAQ |
 | `/how-it-works` | Static | 5-segment postcode anatomy (`FC-01-A01-KP-27`), 3-step verification proxy workflow, and L1–L5 lookup comparison matrix |
 | `/sectors` | Static | Before/after onboarding comparison and playbooks across all 8 national priority sectors |
+| `/pilot` | Static + Client Web Component | Live Fintech & Microfinance Bank pilot sandbox hosting the `<postcheck-address-widget>` Custom Element |
 | `/privacy` | Static | Nigeria Data Protection Act (NDPA) 2023 safeguards, verification scope boundaries, and accessibility commitment |
+| `/widget/v1/postcheck-embed.js` | Static Script | Self-contained Shadow DOM Custom Element (`<postcheck-address-widget>`) emitting `postcheck:verified` KYC handoff events |
 | `/api/postcode` | Dynamic (Server Route Handler) | Server-isolated proxy to `https://api.postcode.gov.ng` enforcing `level=1`, 10s abort timeout, and secret redaction |
 | `/sitemap.xml` | Static | XML sitemap generated from `app/sitemap.ts` |
 | `/robots.txt` | Static | Crawler directives generated from `app/robots.ts` (allows public pages, disallows `/api/`) |

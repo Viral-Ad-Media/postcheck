@@ -914,6 +914,11 @@ curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(que
             Sectors
             <ChevronRight size={14} />
           </Link>
+          <Link href="/pilot" className="nav-item">
+            <Code2 size={17} />
+            Fintech pilot
+            <ChevronRight size={14} />
+          </Link>
           <Link href="/privacy" className="nav-item">
             <LockKeyhole size={17} />
             Privacy &amp; NDPA
@@ -3088,6 +3093,7 @@ curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(que
               <Link href="/overview">Overview</Link>
               <Link href="/how-it-works">How It Works</Link>
               <Link href="/sectors">Sectors</Link>
+              <Link href="/pilot">Fintech Pilot</Link>
               <Link href="/privacy">Privacy &amp; NDPA</Link>
               <a href="/sitemap.xml">Sitemap</a>
               <a href="/llms.txt">LLMs.txt</a>

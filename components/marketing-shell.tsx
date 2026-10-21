@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: '/overview', label: 'Overview' },
   { href: '/how-it-works', label: 'How it works' },
   { href: '/sectors', label: 'Sectors' },
+  { href: '/pilot', label: 'Fintech Pilot' },
   { href: '/privacy', label: 'Privacy & NDPA' },
 ] as const;
 
@@ -159,6 +160,7 @@ export function MarketingShell({
           <div className="mkt-footer-col">
             <p className="mkt-footer-heading">Product & Pages</p>
             <Link href="/">Live verification workspace</Link>
+            <Link href="/pilot">Fintech pilot &amp; Web Component</Link>
             <Link href="/overview">Programme overview</Link>
             <Link href="/how-it-works">How 5-segment lookup works</Link>
             <Link href="/sectors">Eight priority sectors</Link>
