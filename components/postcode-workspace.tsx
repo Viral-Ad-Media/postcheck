@@ -59,16 +59,25 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { BatchAuditItem } from '@/lib/nipost';
 import {
+  DEFAULT_ALLOWED_ORIGINS,
   SAMPLE,
   SAMPLE_BATCH,
   SEGMENTS,
+  WELCOME_CREDITS,
   buildKycHandoffPayload,
+  buildPhase2TierPreview,
+  buildWebhookEventPayload,
+  calculateCommercialBillingPreview,
   canonical,
+  estimateCreditUsage,
+  evaluateOriginAllowlist,
   formatPostcode,
   getKycVerdict,
   nextQuery,
+  type LookupTierLevel,
   type Result,
   type VerificationLogEntry,
+  type WebhookEventType,
 } from '@/lib/postcode';
 
 type Evidence = Result & { passed: boolean };
@@ -109,7 +118,9 @@ async function request(
 }
 
 export function PostcodeWorkspace() {
-  const [tab, setTab] = useState<'capture' | 'tests' | 'batch'>('capture');
+  const [tab, setTab] = useState<'capture' | 'phase2' | 'tests' | 'batch'>(
+    'capture'
+  );
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [statusError, setStatusError] = useState(false);
   const [query, setQuery] = useState('');
@@ -151,6 +162,37 @@ export function PostcodeWorkspace() {
   const [batchInput, setBatchInput] = useState(SAMPLE_BATCH.join('\n'));
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchItems, setBatchItems] = useState<BatchAuditItem[]>([]);
+
+  // Phase 2 (Post-KYB): L1/L2/L3 Tier, 500-Credit Estimator, Origin Allowlist & Pilot SDK state
+  const [tierLevel, setTierLevel] = useState<LookupTierLevel>(2);
+  const [buildingUsePreview, setBuildingUsePreview] = useState<
+    'Residential' | 'Commercial' | 'Public'
+  >('Commercial');
+  const [monthlyApplicants, setMonthlyApplicants] = useState(1200);
+  const [escalationPct, setEscalationPct] = useState(15);
+  const [allowedOrigins, setAllowedOrigins] = useState<string[]>([
+    ...DEFAULT_ALLOWED_ORIGINS,
+  ]);
+  const [newOriginInput, setNewOriginInput] = useState('');
+  const [newOriginError, setNewOriginError] = useState('');
+  const [testOriginUrl, setTestOriginUrl] = useState(
+    'https://onboarding.partnerfintech.ng'
+  );
+  const [sdkFormat, setSdkFormat] = useState<'widget' | 'node' | 'curl'>(
+    'widget'
+  );
+  const [copiedSdk, setCopiedSdk] = useState(false);
+
+  // Phase 3 (Commercial): Per-Verification Billing, Usage Dashboard & Webhooks state
+  const [simulatedNairaRate, setSimulatedNairaRate] = useState(25);
+  const [applyWelcomeInBilling, setApplyWelcomeInBilling] = useState(true);
+  const [webhookEvent, setWebhookEvent] = useState<WebhookEventType>(
+    'postcheck.verification.completed'
+  );
+  const [webhookEndpoint, setWebhookEndpoint] = useState(
+    'https://api.partnerfintech.ng/webhooks/postcheck'
+  );
+  const [copiedWebhook, setCopiedWebhook] = useState(false);
 
   const generation = useRef(0);
   // FR-1: Client-side autocomplete query cache
@@ -657,11 +699,142 @@ export function PostcodeWorkspace() {
     (i) => i.classification === 'invalid_rejected'
   ).length;
 
+  const creditEstimate = estimateCreditUsage(
+    monthlyApplicants,
+    tierLevel,
+    escalationPct
+  );
+  const tierPreviewPayload = buildPhase2TierPreview(
+    query.trim() || SAMPLE,
+    tierLevel,
+    buildingUsePreview
+  );
+  const originCheck = evaluateOriginAllowlist(testOriginUrl, allowedOrigins);
+
+  const commercialBilling = calculateCommercialBillingPreview({
+    l1Count: creditEstimate.l1Checks,
+    l2Count: creditEstimate.l2Checks,
+    l3Count: creditEstimate.l3Checks,
+    simulatedNairaPerCredit: simulatedNairaRate,
+    applyWelcomeCredits: applyWelcomeInBilling,
+  });
+
+  const webhookPayload = buildWebhookEventPayload(
+    webhookEvent,
+    query.trim() || SAMPLE,
+    webhookEndpoint,
+    result?.at ?? '2026-10-21T10:00:00.000Z'
+  );
+
+  const avgSessionLatencyMs =
+    verificationLog.length > 0
+      ? Math.round(
+          verificationLog.reduce((acc, item) => acc + item.durationMs, 0) /
+            verificationLog.length
+        )
+      : null;
+
+  const sdkSnippet =
+    sdkFormat === 'widget'
+      ? `<!-- PostCheck Phase 2 · Customer-Facing Onboarding Widget (Origin-Allowlisted) -->
+<div
+  id="postcheck-address-step"
+  data-publishable-key="nipost_pk_test_vam_session2_demo"
+  data-allowed-origin="${allowedOrigins[0] ?? 'https://onboarding.partnerfintech.ng'}"
+  data-default-level="1"
+  data-escalation-level="${tierLevel}"
+></div>
+<script
+  src="https://postcheck.viraladmedia.com/widget/v1/postcheck-embed.js"
+  async
+></script>
+<script>
+  window.addEventListener('postcheck:verified', (event) => {
+    // Receives canonical Section 9 KYC handoff payload
+    const kycAddressPayload = event.detail;
+    console.log('Verified NIPOST Postcode:', kycAddressPayload.postcode);
+  });
+</script>`
+      : sdkFormat === 'node'
+        ? `// PostCheck Phase 2 · Fintech Server-to-Server KYC Handoff Integration
+const response = await fetch('https://postcheck.viraladmedia.com/api/postcode', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    operation: 'lookup',
+    input: { postcode: '${query.trim() || SAMPLE}', level: 1 },
+  }),
+});
+
+const verification = await response.json();
+// Persist canonical 5-segment reference alongside BVN/NIN check
+await db.kycAddresses.insert({
+  postcode: '${tierPreviewPayload.postcode}',
+  segments: ${JSON.stringify(tierPreviewPayload.segments)},
+  verdict: verification.ok ? 'verified' : 'not_verified',
+  level: 1,
+  source: 'NIPOST Postcode API — test environment',
+});`
+        : `# PostCheck Phase 2 · Direct NIPOST Gateway Lookup (Server-Only X-API-Key)
+curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(query.trim() || SAMPLE)}&level=${tierLevel}" \\
+  -H "X-API-Key: $NIPOST_API_KEY" \\
+  -H "Accept: application/json"`;
+
+  function handleAddAllowedOrigin(e: React.FormEvent) {
+    e.preventDefault();
+    const check = evaluateOriginAllowlist(newOriginInput, [newOriginInput]);
+    if (check.code === 'invalid_origin' || !check.normalizedOrigin) {
+      setNewOriginError(
+        'Enter a valid HTTPS origin URL (e.g. https://checkout.partnerbank.ng).'
+      );
+      return;
+    }
+    if (
+      !check.normalizedOrigin.startsWith('https://') &&
+      !check.normalizedOrigin.startsWith('http://localhost')
+    ) {
+      setNewOriginError(
+        'Publishable widget origins must use HTTPS (or http://localhost in dev).'
+      );
+      return;
+    }
+    if (!allowedOrigins.includes(check.normalizedOrigin)) {
+      setAllowedOrigins((prev) => [...prev, check.normalizedOrigin!]);
+    }
+    setTestOriginUrl(check.normalizedOrigin);
+    setNewOriginInput('');
+    setNewOriginError('');
+  }
+
+  function copySdkSnippet() {
+    navigator.clipboard?.writeText(sdkSnippet);
+    setCopiedSdk(true);
+    setTimeout(() => setCopiedSdk(false), 1800);
+  }
+
+  function copyWebhookJson() {
+    navigator.clipboard?.writeText(JSON.stringify(webhookPayload, null, 2));
+    setCopiedWebhook(true);
+    setTimeout(() => setCopiedWebhook(false), 1800);
+  }
+
+  function handleBatchFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setBatchInput(reader.result.slice(0, 2000));
+      }
+    };
+    reader.readAsText(file);
+  }
+
   return (
     <Tabs
       value={tab}
       onValueChange={(v) => {
-        setTab(v as 'capture' | 'tests' | 'batch');
+        setTab(v as 'capture' | 'phase2' | 'tests' | 'batch');
         setMessage('');
       }}
       className="app-shell"
@@ -692,13 +865,23 @@ export function PostcodeWorkspace() {
               <ChevronRight size={14} />
             </TabsTrigger>
             <TabsTrigger
+              value="phase2"
+              className={tab === 'phase2' ? 'nav-item active' : 'nav-item'}
+            >
+              <Code2 size={18} />
+              Pilot &amp; widget studio
+              <Badge variant="gold" className="count">
+                L2/L3
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger
               value="batch"
               className={tab === 'batch' ? 'nav-item active' : 'nav-item'}
             >
               <FileSpreadsheet size={18} />
-              Batch backbook audit
+              Batch &amp; commercial
               <Badge variant="gold" className="count">
-                P2
+                P2/P3
               </Badge>
             </TabsTrigger>
             <TabsTrigger
@@ -771,9 +954,11 @@ export function PostcodeWorkspace() {
             <strong aria-current="page">
               {tab === 'capture'
                 ? 'Address verification'
-                : tab === 'batch'
-                  ? 'Batch backbook audit'
-                  : 'API test suite'}
+                : tab === 'phase2'
+                  ? 'Phase 2 · Pilot & widget studio'
+                  : tab === 'batch'
+                    ? 'Batch backbook audit'
+                    : 'API test suite'}
             </strong>
           </nav>
           <div className="topbar-right">
@@ -816,6 +1001,23 @@ export function PostcodeWorkspace() {
                       </svg>
                     </span>
                     . A better start.
+                  </>
+                ) : tab === 'phase2' ? (
+                  <>
+                    Post-KYB{' '}
+                    <span className="gold-word">
+                      tiers
+                      <svg viewBox="0 0 200 10" aria-hidden="true">
+                        <path
+                          d="M3 7 C 60 2, 140 2, 197 6"
+                          stroke="#EBC700"
+                          strokeWidth="5"
+                          fill="none"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </span>{' '}
+                    &amp; widget studio.
                   </>
                 ) : tab === 'batch' ? (
                   <>
@@ -866,6 +1068,12 @@ export function PostcodeWorkspace() {
                       8 Nigerian sector playbooks
                     </Link>
                     .
+                  </>
+                ) : tab === 'phase2' ? (
+                  <>
+                    Configure Phase 2 post-KYB lookup tiers (L1 free vs. L2/L3
+                    credit-metered), manage publishable widget origin
+                    allowlists, and copy fintech pilot SDK snippets.
                   </>
                 ) : tab === 'batch' ? (
                   <>
@@ -1705,15 +1913,23 @@ export function PostcodeWorkspace() {
                         postcode above to populate the audit trail.
                       </p>
                     ) : (
-                      <div className="mkt-table-scroll log-table-wrap">
-                        <table className="mkt-table">
-                          <caption className="sr-only">
+                      <div
+                        tabIndex={0}
+                        role="region"
+                        aria-labelledby="session-log-table-caption"
+                        className="mkt-table-scroll log-table-wrap responsive-table-region"
+                      >
+                        <table className="mkt-table sticky-data-table">
+                          <caption
+                            id="session-log-table-caption"
+                            className="sr-only"
+                          >
                             Session postcode verification log
                           </caption>
                           <thead>
                             <tr>
-                              <th scope="col">Time</th>
                               <th scope="col">Postcode</th>
+                              <th scope="col">Time</th>
                               <th scope="col">Decoded Segments</th>
                               <th scope="col">Verdict</th>
                               <th scope="col">Level</th>
@@ -1723,6 +1939,9 @@ export function PostcodeWorkspace() {
                           <tbody>
                             {verificationLog.map((entry) => (
                               <tr key={entry.id}>
+                                <th scope="row">
+                                  <code>{entry.postcode}</code>
+                                </th>
                                 <td>
                                   <span className="log-time">
                                     <Clock size={12} />
@@ -1734,9 +1953,6 @@ export function PostcodeWorkspace() {
                                       second: '2-digit',
                                     })}
                                   </span>
-                                </td>
-                                <td>
-                                  <code>{entry.postcode}</code>
                                 </td>
                                 <td>
                                   {entry.segments ? (
@@ -1882,145 +2098,868 @@ export function PostcodeWorkspace() {
             </div>
           </TabsContent>
 
+          <TabsContent value="phase2" className="tab-stage">
+            <div className="phase2-grid">
+              {/* 1. L1 / L2 / L3 Lookup Tier & 500-Welcome-Credit Estimator */}
+              <Card className="panel">
+                <CardHeader className="panel-heading">
+                  <span className="panel-icon">
+                    <Layers3 size={20} />
+                  </span>
+                  <div>
+                    <CardTitle>
+                      L1 / L2 / L3 Lookup Tiers &amp; 500-Credit Estimator
+                    </CardTitle>
+                    <CardDescription>
+                      Phase 1 locks live calls to free L1. Model how Post-KYB L2
+                      (house address) and L3 (building use) draw against Viral
+                      Ad Media’s 500 welcome credits.
+                    </CardDescription>
+                  </div>
+                  <CardAction>
+                    <Badge
+                      variant={
+                        tierLevel === 1
+                          ? 'success'
+                          : creditEstimate.withinWelcomeGrant
+                            ? 'gold'
+                            : 'destructive'
+                      }
+                    >
+                      {tierLevel === 1
+                        ? 'L1 · 0 CREDITS (ACTIVE)'
+                        : `L${tierLevel} · POST-KYB PREVIEW`}
+                    </Badge>
+                  </CardAction>
+                </CardHeader>
+
+                <CardContent className="panel-body">
+                  <fieldset className="onboarding-fieldset">
+                    <legend className="onboarding-tier-label">
+                      Select target NIPOST lookup tier (1–3 options)
+                    </legend>
+                    <div
+                      className="onboarding-radios"
+                      role="radiogroup"
+                      aria-label="Target NIPOST lookup tier"
+                    >
+                      {(
+                        [
+                          {
+                            lvl: 1 as const,
+                            label: 'L1 · Validity & Segments (0 credits)',
+                          },
+                          {
+                            lvl: 2 as const,
+                            label: 'L2 · + Admin & House Address (1 credit)',
+                          },
+                          {
+                            lvl: 3 as const,
+                            label: 'L3 · + Building Use Status (2 credits)',
+                          },
+                        ] as const
+                      ).map((opt) => (
+                        <label
+                          key={opt.lvl}
+                          className={
+                            'onboarding-radio-pill' +
+                            (tierLevel === opt.lvl ? ' active' : '')
+                          }
+                        >
+                          <input
+                            type="radio"
+                            name="lookup-tier-level"
+                            value={opt.lvl}
+                            checked={tierLevel === opt.lvl}
+                            onChange={() => setTierLevel(opt.lvl)}
+                          />
+                          <span>{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+
+                    {tierLevel === 3 && (
+                      <div className="onboarding-tier-group">
+                        <span className="onboarding-tier-label">
+                          Simulated L3 building-use classification
+                        </span>
+                        <div
+                          className="onboarding-radios"
+                          role="radiogroup"
+                          aria-label="Simulated L3 building use status"
+                        >
+                          {(
+                            ['Residential', 'Commercial', 'Public'] as const
+                          ).map((useType) => (
+                            <label
+                              key={useType}
+                              className={
+                                'onboarding-radio-pill' +
+                                (buildingUsePreview === useType
+                                  ? ' active'
+                                  : '')
+                              }
+                            >
+                              <input
+                                type="radio"
+                                name="building-use-preview"
+                                value={useType}
+                                checked={buildingUsePreview === useType}
+                                onChange={() => setBuildingUsePreview(useType)}
+                              />
+                              <span>{useType}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="phase2-sliders-grid">
+                      <div className="onboarding-field">
+                        <Label htmlFor="monthly-applicants-range">
+                          Monthly onboarding applicants:{' '}
+                          <strong>
+                            {monthlyApplicants.toLocaleString()}
+                          </strong>
+                        </Label>
+                        <input
+                          id="monthly-applicants-range"
+                          name="monthly-applicants"
+                          type="range"
+                          min={100}
+                          max={5000}
+                          step={100}
+                          value={monthlyApplicants}
+                          onChange={(e) =>
+                            setMonthlyApplicants(Number(e.target.value))
+                          }
+                        />
+                      </div>
+
+                      <div className="onboarding-field">
+                        <Label htmlFor="escalation-pct-range">
+                          Tier 2/3 escalation rate (L2/L3 share):{' '}
+                          <strong>{escalationPct}%</strong>
+                        </Label>
+                        <input
+                          id="escalation-pct-range"
+                          name="escalation-pct"
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          disabled={tierLevel === 1}
+                          value={escalationPct}
+                          onChange={(e) =>
+                            setEscalationPct(Number(e.target.value))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="credit-meter-card">
+                      <div className="credit-meter-head">
+                        <span>
+                          Estimated credit consumption:{' '}
+                          <strong>
+                            {creditEstimate.creditsUsed.toLocaleString()}
+                          </strong>{' '}
+                          / {WELCOME_CREDITS} welcome credits
+                        </span>
+                        <Badge
+                          variant={
+                            creditEstimate.withinWelcomeGrant
+                              ? 'success'
+                              : 'destructive'
+                          }
+                        >
+                          {creditEstimate.withinWelcomeGrant
+                            ? `${creditEstimate.creditsRemaining} credits remaining`
+                            : 'Exceeds 500 welcome grant'}
+                        </Badge>
+                      </div>
+                      <progress
+                        className="credit-progress"
+                        max={WELCOME_CREDITS}
+                        value={Math.min(
+                          WELCOME_CREDITS,
+                          creditEstimate.creditsUsed
+                        )}
+                        aria-label="Estimated credit usage against 500 welcome credits"
+                      />
+                      <p className="credit-meter-note">
+                        <strong>
+                          {creditEstimate.l1Checks.toLocaleString()}
+                        </strong>{' '}
+                        applicants verified free at L1 ·{' '}
+                        <strong>
+                          {(
+                            creditEstimate.l2Checks + creditEstimate.l3Checks
+                          ).toLocaleString()}
+                        </strong>{' '}
+                        escalated to L{tierLevel}. KYB status: submitted 4 Oct
+                        2026 (under NIPOST review).
+                      </p>
+                    </div>
+
+                    <div className="bank-compliance-view">
+                      <div className="bank-compliance-head">
+                        <div>
+                          <span className="eyebrow">
+                            L{tierLevel} SCHEMA &amp; KYB GATE PREVIEW
+                          </span>
+                          <h4>
+                            Postcode <code>{tierPreviewPayload.postcode}</code>{' '}
+                            · {tierPreviewPayload.credits_per_lookup} credit(s)
+                            / call
+                          </h4>
+                        </div>
+                        <Badge
+                          variant={tierLevel === 1 ? 'success' : 'gold'}
+                        >
+                          {tierLevel === 1
+                            ? 'Live Sandbox Schema'
+                            : 'Post-KYB Schema Preview'}
+                        </Badge>
+                      </div>
+                      <pre>{JSON.stringify(tierPreviewPayload, null, 2)}</pre>
+                    </div>
+                  </fieldset>
+                </CardContent>
+
+                <CardFooter className="panel-bottom">
+                  <LockKeyhole size={14} />
+                  Phase 1 runtime strictly enforces L1 (0 credits). L2/L3 unlock
+                  automatically once NIPOST approves Viral Ad Media’s KYB.
+                </CardFooter>
+              </Card>
+
+              {/* 2. Publishable Key & Origin Allowlist Guard + Pilot SDK Studio */}
+              <div className="capture-stack">
+                <Card className="panel">
+                  <CardHeader className="panel-heading">
+                    <span className="panel-icon">
+                      <ShieldCheck size={20} />
+                    </span>
+                    <div>
+                      <CardTitle>
+                        Publishable Key &amp; Origin Allowlist Guard
+                      </CardTitle>
+                      <CardDescription>
+                        Configure allowed checkout/onboarding origins for{' '}
+                        <code>nipost_pk_*</code> embeds and test HTTP 403 origin
+                        rejection (PRD Sections 6 &amp; 8).
+                      </CardDescription>
+                    </div>
+                    <CardAction>
+                      <Badge variant="gold">ORIGIN GUARD</Badge>
+                    </CardAction>
+                  </CardHeader>
+
+                  <CardContent className="panel-body">
+                    <form
+                      onSubmit={handleAddAllowedOrigin}
+                      className="origin-add-form"
+                      noValidate
+                    >
+                      <fieldset className="onboarding-fieldset">
+                        <legend className="sr-only">
+                          Add an allowed HTTPS origin for publishable widget
+                          embeds
+                        </legend>
+                        <div className="onboarding-field">
+                          <Label htmlFor="new-origin-url">
+                            Add allowed partner origin (HTTPS)
+                          </Label>
+                          <div className="origin-input-row">
+                            <Input
+                              id="new-origin-url"
+                              name="allowed-origin"
+                              type="url"
+                              inputMode="url"
+                              autoCorrect="off"
+                              autoCapitalize="off"
+                              spellCheck={false}
+                              placeholder="https://checkout.partnerbank.ng"
+                              value={newOriginInput}
+                              onChange={(e) => {
+                                setNewOriginInput(e.target.value);
+                                if (newOriginError) setNewOriginError('');
+                              }}
+                              onBlur={() => {
+                                if (!newOriginInput.trim()) return;
+                                const chk = evaluateOriginAllowlist(
+                                  newOriginInput,
+                                  [newOriginInput]
+                                );
+                                if (chk.code === 'invalid_origin') {
+                                  setNewOriginError(chk.message);
+                                }
+                              }}
+                              aria-describedby="origin-help"
+                            />
+                            <Button type="submit" variant="outline">
+                              Add origin
+                            </Button>
+                          </div>
+                          <span id="origin-help" className="field-help">
+                            Only listed origins may initialize the client-side
+                            PostCheck widget.
+                          </span>
+                          {newOriginError && (
+                            <p className="origin-error-msg" role="alert">
+                              {newOriginError}
+                            </p>
+                          )}
+                        </div>
+                      </fieldset>
+                    </form>
+
+                    <ul
+                      className="origin-pill-list"
+                      role="list"
+                      aria-label="Allowed widget origins"
+                    >
+                      {allowedOrigins.map((orig) => (
+                        <li key={orig} className="origin-pill">
+                          <code>{orig}</code>
+                          {allowedOrigins.length > 1 && (
+                            <button
+                              type="button"
+                              aria-label={`Remove ${orig} from allowlist`}
+                              onClick={() =>
+                                setAllowedOrigins((prev) =>
+                                  prev.filter((x) => x !== orig)
+                                )
+                              }
+                            >
+                              <X size={12} />
+                            </button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+
+                    <Separator className="my-3.5" />
+
+                    <div className="onboarding-field">
+                      <Label htmlFor="test-origin-input">
+                        Simulate incoming widget request <code>Origin</code>{' '}
+                        header
+                      </Label>
+                      <div className="sample-row">
+                        <span>Quick test:</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTestOriginUrl(
+                              allowedOrigins[0] ??
+                                'https://onboarding.partnerfintech.ng'
+                            )
+                          }
+                        >
+                          Allowed partner (200)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setTestOriginUrl(
+                              'https://untrusted-phishing.example.com'
+                            )
+                          }
+                        >
+                          Unlisted origin (403)
+                        </button>
+                      </div>
+                      <Input
+                        id="test-origin-input"
+                        name="test-origin"
+                        type="url"
+                        inputMode="url"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        value={testOriginUrl}
+                        onChange={(e) => setTestOriginUrl(e.target.value)}
+                      />
+                    </div>
+
+                    <Alert
+                      variant={originCheck.allowed ? 'success' : 'destructive'}
+                      className="mt-3.5"
+                      role="status"
+                    >
+                      <div>
+                        <AlertTitle>
+                          HTTP {originCheck.status} · {originCheck.code}
+                        </AlertTitle>
+                        <AlertDescription>
+                          {originCheck.message}
+                        </AlertDescription>
+                      </div>
+                    </Alert>
+                  </CardContent>
+                </Card>
+
+                <Card className="panel">
+                  <CardHeader className="panel-heading">
+                    <span className="panel-icon">
+                      <Code2 size={20} />
+                    </span>
+                    <div>
+                      <CardTitle>
+                        Fintech Pilot SDK &amp; Widget Embed Snippets
+                      </CardTitle>
+                      <CardDescription>
+                        Ready-to-paste integration code for Nigerian banks,
+                        fintechs, and microfinance onboarding teams.
+                      </CardDescription>
+                    </div>
+                    <CardAction>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={copySdkSnippet}
+                      >
+                        {copiedSdk ? (
+                          <>
+                            <Check size={13} /> Copied snippet
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={13} /> Copy code
+                          </>
+                        )}
+                      </Button>
+                    </CardAction>
+                  </CardHeader>
+
+                  <CardContent className="panel-body">
+                    <div
+                      className="onboarding-radios mb-3.5"
+                      role="radiogroup"
+                      aria-label="SDK integration snippet format"
+                    >
+                      {(
+                        [
+                          { id: 'widget', label: 'HTML Widget Embed' },
+                          { id: 'node', label: 'Next.js / Node KYC Proxy' },
+                          { id: 'curl', label: 'cURL Gateway Call' },
+                        ] as const
+                      ).map((fmt) => (
+                        <label
+                          key={fmt.id}
+                          className={
+                            'onboarding-radio-pill' +
+                            (sdkFormat === fmt.id ? ' active' : '')
+                          }
+                        >
+                          <input
+                            type="radio"
+                            name="sdk-snippet-format"
+                            value={fmt.id}
+                            checked={sdkFormat === fmt.id}
+                            onChange={() => setSdkFormat(fmt.id)}
+                          />
+                          <span>{fmt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+
+                    <div className="bank-compliance-view">
+                      <pre>{sdkSnippet}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
           <TabsContent value="batch" className="tab-stage">
-            <Card className="panel tests-panel">
-              <CardHeader className="panel-heading">
-                <span className="panel-icon">
-                  <FileSpreadsheet size={20} />
-                </span>
-                <div>
-                  <CardTitle>Phase 2 · Batch backbook normalization</CardTitle>
-                  <CardDescription>
-                    Validate up to 10 customer onboarding postcodes against
-                    NIPOST Level 1 and export a normalized compliance report.
-                  </CardDescription>
-                </div>
-                <CardAction className="test-score">
-                  {batchPassCount}
-                  <small> / {batchItems.length || 0} valid</small>
-                </CardAction>
-              </CardHeader>
+            <div className="capture-stack">
+              <Card className="panel tests-panel">
+                <CardHeader className="panel-heading">
+                  <span className="panel-icon">
+                    <FileSpreadsheet size={20} />
+                  </span>
+                  <div>
+                    <CardTitle>
+                      FR-11 (P2) &amp; Phase 3 · Batch backbook normalization API
+                    </CardTitle>
+                    <CardDescription>
+                      Paste or upload a CSV/text list of customer postcodes,
+                      validate against NIPOST Level 1, and export a normalized
+                      compliance report.
+                    </CardDescription>
+                  </div>
+                  <CardAction className="test-score">
+                    {batchPassCount}
+                    <small> / {batchItems.length || 0} valid</small>
+                  </CardAction>
+                </CardHeader>
 
-              <CardContent className="panel-body">
-                <div className="field-heading">
-                  <Label htmlFor="batch-codes">
-                    Postcodes to audit (one per line or comma-separated, max 10)
-                  </Label>
-                  <button
-                    type="button"
-                    className="batch-sample-btn"
+                <CardContent className="panel-body">
+                  <div className="field-heading">
+                    <Label htmlFor="batch-codes">
+                      Postcodes to audit (one per line or comma-separated, max
+                      10 in sandbox)
+                    </Label>
+                    <div className="batch-top-controls">
+                      <label className="batch-upload-label">
+                        <span>Upload .csv / .txt</span>
+                        <input
+                          type="file"
+                          accept=".csv,.txt,text/csv,text/plain"
+                          className="sr-only"
+                          disabled={batchBusy}
+                          onChange={handleBatchFileUpload}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="batch-sample-btn"
+                        disabled={batchBusy}
+                        onClick={() => setBatchInput(SAMPLE_BATCH.join('\n'))}
+                      >
+                        Reset sample batch
+                      </button>
+                    </div>
+                  </div>
+
+                  <textarea
+                    id="batch-codes"
+                    name="batch-codes"
+                    className="batch-textarea"
+                    rows={4}
+                    value={batchInput}
                     disabled={batchBusy}
-                    onClick={() => setBatchInput(SAMPLE_BATCH.join('\n'))}
-                  >
-                    Reset sample batch
-                  </button>
-                </div>
+                    onChange={(e) => setBatchInput(e.target.value)}
+                    placeholder="FC-01-A01-KP-27&#10;EK-01-A03-FK-01&#10;NOT-A-POSTCODE"
+                  />
 
-                <textarea
-                  id="batch-codes"
-                  name="batch-codes"
-                  className="batch-textarea"
-                  rows={4}
-                  value={batchInput}
-                  disabled={batchBusy}
-                  onChange={(e) => setBatchInput(e.target.value)}
-                  placeholder="FC-01-A01-KP-27&#10;EK-01-A03-FK-01&#10;NOT-A-POSTCODE"
-                />
+                  <div className="batch-actions-bar">
+                    <Button
+                      disabled={!configured || batchBusy || !batchInput.trim()}
+                      onClick={runBatchAudit}
+                    >
+                      {batchBusy ? <Loader2 className="spin" /> : <Play />}
+                      {batchBusy ? 'Auditing postcodes…' : 'Run batch L1 audit'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      disabled={batchItems.length === 0 || batchBusy}
+                      onClick={downloadBatchCsv}
+                    >
+                      <Download />
+                      Export CSV report
+                    </Button>
+                    {batchItems.length > 0 && (
+                      <div className="batch-summary-pills">
+                        <Badge variant="success">
+                          {batchPassCount} Valid / Canonical
+                        </Badge>
+                        <Badge variant="destructive">
+                          {batchRejectCount} Rejected Invalid
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
 
-                <div className="batch-actions-bar">
-                  <Button
-                    disabled={!configured || batchBusy || !batchInput.trim()}
-                    onClick={runBatchAudit}
-                  >
-                    {batchBusy ? <Loader2 className="spin" /> : <Play />}
-                    {batchBusy ? 'Auditing postcodes…' : 'Run batch L1 audit'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    disabled={batchItems.length === 0 || batchBusy}
-                    onClick={downloadBatchCsv}
-                  >
-                    <Download />
-                    Export CSV report
-                  </Button>
                   {batchItems.length > 0 && (
-                    <div className="batch-summary-pills">
-                      <Badge variant="success">
-                        {batchPassCount} Valid / Canonical
-                      </Badge>
-                      <Badge variant="destructive">
-                        {batchRejectCount} Rejected Invalid
-                      </Badge>
+                    <div
+                      tabIndex={0}
+                      role="region"
+                      aria-labelledby="batch-audit-table-caption"
+                      className="mkt-table-scroll batch-table-wrap responsive-table-region"
+                    >
+                      <table className="mkt-table sticky-data-table">
+                        <caption
+                          id="batch-audit-table-caption"
+                          className="sr-only"
+                        >
+                          Batch postcode normalization audit results
+                        </caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Raw Input</th>
+                            <th scope="col">#</th>
+                            <th scope="col">Normalized (`AA-99-H77-BB-55`)</th>
+                            <th scope="col">Classification</th>
+                            <th scope="col">Latency</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {batchItems.map((item, idx) => (
+                            <tr key={item.input + idx}>
+                              <th scope="row">
+                                <code>{item.input}</code>
+                              </th>
+                              <td>
+                                <code>{String(idx + 1).padStart(2, '0')}</code>
+                              </td>
+                              <td>
+                                {item.dashed ? (
+                                  <code>{item.dashed}</code>
+                                ) : (
+                                  <span className="text-muted">—</span>
+                                )}
+                              </td>
+                              <td>
+                                {item.classification === 'verified_active' ? (
+                                  <Badge variant="success">
+                                    L1 Active Building
+                                  </Badge>
+                                ) : item.classification ===
+                                  'canonical_unseeded' ? (
+                                  <Badge variant="gold">
+                                    L1 Canonical (`not_found`)
+                                  </Badge>
+                                ) : item.classification ===
+                                  'invalid_rejected' ? (
+                                  <Badge variant="destructive">
+                                    Rejected (`invalid`)
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary">
+                                    Upstream error
+                                  </Badge>
+                                )}
+                              </td>
+                              <td>
+                                <code>{item.durationMs} ms</code>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
-                </div>
+                </CardContent>
 
-                {batchItems.length > 0 && (
-                  <div className="mkt-table-scroll batch-table-wrap">
-                    <table className="mkt-table">
-                      <caption className="sr-only">
-                        Batch postcode normalization audit results
-                      </caption>
-                      <thead>
-                        <tr>
-                          <th scope="col">#</th>
-                          <th scope="col">Raw Input</th>
-                          <th scope="col">Normalized (`AA-99-H77-BB-55`)</th>
-                          <th scope="col">Classification</th>
-                          <th scope="col">Latency</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {batchItems.map((item, idx) => (
-                          <tr key={item.input + idx}>
-                            <td>
-                              <code>{String(idx + 1).padStart(2, '0')}</code>
-                            </td>
-                            <td>
-                              <code>{item.input}</code>
-                            </td>
-                            <td>
-                              {item.dashed ? (
-                                <code>{item.dashed}</code>
-                              ) : (
-                                <span className="text-muted">—</span>
-                              )}
-                            </td>
-                            <td>
-                              {item.classification === 'verified_active' ? (
-                                <Badge variant="success">
-                                  L1 Active Building
-                                </Badge>
-                              ) : item.classification ===
-                                'canonical_unseeded' ? (
-                                <Badge variant="gold">
-                                  L1 Canonical (`not_found`)
-                                </Badge>
-                              ) : item.classification === 'invalid_rejected' ? (
-                                <Badge variant="destructive">
-                                  Rejected (`invalid`)
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary">Upstream error</Badge>
-                              )}
-                            </td>
-                            <td>
-                              <code>{item.durationMs} ms</code>
-                            </td>
-                          </tr>
+                <CardFooter className="panel-bottom">
+                  <LockKeyhole size={14} />
+                  All batch lookups run server-side at Level 1 (0 credits
+                  consumed, zero PII retained).
+                </CardFooter>
+              </Card>
+
+              {/* Phase 3 — Commercial Usage & Billing Dashboard + Signed Webhooks */}
+              <div className="phase2-grid">
+                <Card className="panel">
+                  <CardHeader className="panel-heading">
+                    <span className="panel-icon">
+                      <Database size={20} />
+                    </span>
+                    <div>
+                      <CardTitle>
+                        Phase 3 · Commercial Usage &amp; Billing Dashboard
+                      </CardTitle>
+                      <CardDescription>
+                        Per-verification billing &amp; ROI model against
+                        traditional ₦2,500 physical address-verification visits
+                        (pending official NIPOST commercial pricing).
+                      </CardDescription>
+                    </div>
+                    <CardAction>
+                      <Badge variant="gold">PHASE 3 PREVIEW</Badge>
+                    </CardAction>
+                  </CardHeader>
+
+                  <CardContent className="panel-body">
+                    <div className="phase3-kpi-grid">
+                      <div className="phase3-kpi-tile">
+                        <small>Session checks logged</small>
+                        <strong>{verificationLog.length}</strong>
+                        <span>
+                          {avgSessionLatencyMs !== null
+                            ? `Avg ${avgSessionLatencyMs} ms latency`
+                            : '0 credits consumed (L1)'}
+                        </span>
+                      </div>
+                      <div className="phase3-kpi-tile">
+                        <small>Monthly volume modeled</small>
+                        <strong>
+                          {commercialBilling.totalVerifications.toLocaleString()}
+                        </strong>
+                        <span>
+                          {commercialBilling.l1FreeCount.toLocaleString()} free
+                          L1 ·{' '}
+                          {(
+                            commercialBilling.l2Count +
+                            commercialBilling.l3Count
+                          ).toLocaleString()}{' '}
+                          L2/L3
+                        </span>
+                      </div>
+                      <div className="phase3-kpi-tile">
+                        <small>Net billable credits</small>
+                        <strong>
+                          {commercialBilling.billableCredits.toLocaleString()}
+                        </strong>
+                        <span>
+                          After {commercialBilling.welcomeCreditsApplied}{' '}
+                          welcome credits
+                        </span>
+                      </div>
+                      <div className="phase3-kpi-tile highlight">
+                        <small>Est. monthly KYC savings</small>
+                        <strong>
+                          ₦
+                          {commercialBilling.estimatedSavingsNgn.toLocaleString()}
+                        </strong>
+                        <span>
+                          {commercialBilling.savingsPct}% vs. ₦2,500 field
+                          visits
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="onboarding-fieldset mt-3.5">
+                      <div className="onboarding-field">
+                        <Label htmlFor="simulated-naira-rate">
+                          Simulated NIPOST commercial rate per credit:{' '}
+                          <strong>₦{simulatedNairaRate}</strong> / credit
+                        </Label>
+                        <input
+                          id="simulated-naira-rate"
+                          name="simulated-naira-rate"
+                          type="range"
+                          min={5}
+                          max={100}
+                          step={5}
+                          value={simulatedNairaRate}
+                          onChange={(e) =>
+                            setSimulatedNairaRate(Number(e.target.value))
+                          }
+                        />
+                      </div>
+
+                      <label className="onboarding-checkbox-row">
+                        <input
+                          type="checkbox"
+                          checked={applyWelcomeInBilling}
+                          onChange={(e) =>
+                            setApplyWelcomeInBilling(e.target.checked)
+                          }
+                        />
+                        <span>
+                          Deduct Viral Ad Media’s{' '}
+                          <strong>500 welcome credits</strong> before billing
+                        </span>
+                      </label>
+                    </div>
+                  </CardContent>
+
+                  <CardFooter className="panel-bottom">
+                    <CircleHelp size={14} />
+                    NIPOST has not yet published commercial per-credit rates
+                    (PRD Section 11); slider models indicative unit economics.
+                  </CardFooter>
+                </Card>
+
+                <Card className="panel">
+                  <CardHeader className="panel-heading">
+                    <span className="panel-icon">
+                      <Terminal size={20} />
+                    </span>
+                    <div>
+                      <CardTitle>
+                        Phase 3 · Signed Webhooks (
+                        <code>X-PostCheck-Signature</code>)
+                      </CardTitle>
+                      <CardDescription>
+                        Inspect signed webhook events dispatched to partner core
+                        banking or KYC queues after verification or batch jobs.
+                      </CardDescription>
+                    </div>
+                    <CardAction>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={copyWebhookJson}
+                      >
+                        {copiedWebhook ? (
+                          <>
+                            <Check size={13} /> Copied event
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={13} /> Copy webhook JSON
+                          </>
+                        )}
+                      </Button>
+                    </CardAction>
+                  </CardHeader>
+
+                  <CardContent className="panel-body">
+                    <div className="onboarding-fieldset">
+                      <div
+                        className="onboarding-radios"
+                        role="radiogroup"
+                        aria-label="Webhook event type"
+                      >
+                        {(
+                          [
+                            {
+                              id: 'postcheck.verification.completed',
+                              label: 'verification.completed',
+                            },
+                            {
+                              id: 'postcheck.verification.rejected',
+                              label: 'verification.rejected',
+                            },
+                            {
+                              id: 'postcheck.batch.completed',
+                              label: 'batch.completed',
+                            },
+                          ] as const
+                        ).map((ev) => (
+                          <label
+                            key={ev.id}
+                            className={
+                              'onboarding-radio-pill' +
+                              (webhookEvent === ev.id ? ' active' : '')
+                            }
+                          >
+                            <input
+                              type="radio"
+                              name="webhook-event-type"
+                              value={ev.id}
+                              checked={webhookEvent === ev.id}
+                              onChange={() => setWebhookEvent(ev.id)}
+                            />
+                            <span>{ev.label}</span>
+                          </label>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </CardContent>
+                      </div>
 
-              <CardFooter className="panel-bottom">
-                <LockKeyhole size={14} />
-                All batch lookups run server-side at Level 1 (0 credits consumed,
-                zero PII retained).
-              </CardFooter>
-            </Card>
+                      <div className="onboarding-field">
+                        <Label htmlFor="webhook-endpoint-url">
+                          Partner webhook destination URL
+                        </Label>
+                        <Input
+                          id="webhook-endpoint-url"
+                          name="webhook-endpoint-url"
+                          type="url"
+                          inputMode="url"
+                          autoCorrect="off"
+                          autoCapitalize="off"
+                          spellCheck={false}
+                          value={webhookEndpoint}
+                          onChange={(e) => setWebhookEndpoint(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="bank-compliance-view">
+                        <pre>{JSON.stringify(webhookPayload, null, 2)}</pre>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="tests" className="tab-stage">

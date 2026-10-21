@@ -92,7 +92,7 @@ npm run typecheck
 npm run build
 ```
 
-- `npm test` runs `11` unit tests in `tests/nipost.test.mjs` covering key validation, L1 enforcement, secret redaction, timeout/abort handling, segment autocomplete helpers, negative-test guards, `/v1/assembly/disassemble`, `/v1/reference/*` catalog validation, `postcheck.kyc.handoff.v1` payload formatting, and batch backbook classification.
+- `npm test` runs `14` unit tests in `tests/nipost.test.mjs` covering key validation, L1 enforcement, secret redaction, timeout/abort handling, segment autocomplete helpers, negative-test guards, `/v1/assembly/disassemble`, `/v1/reference/*` catalog validation, `/v1/search/nearby`, `postcheck.kyc.handoff.v1` payload formatting, batch backbook classification, Phase 2 L1/L2/L3 credit & origin-allowlist guards, and Phase 3 commercial billing & signed webhook payloads.
 - `npm run typecheck` runs `tsc --noEmit`.
 - `npm run build` compiles and prerenders all static pages and discovery files with browser source maps disabled.
 
@@ -132,8 +132,9 @@ npm start
 - `lib/postcode.ts` — Shared segment constants (`FC-01-A01-KP-27`) and segment-aware query helpers
 - `lib/seo.ts` — Canonical metadata builder and JSON-LD schema generators
 - `scripts/check-staging.mjs` — CLI runner for the 4-check live NIPOST staging suite
-- `tests/nipost.test.mjs` — Node test runner suite (`12` tests)
-- `docs/DEMO.md` — Demo walkthrough and 90-second showcase script
+- `tests/nipost.test.mjs` — Node test runner suite (`14` tests)
+- `docs/DEMO.md` — Demo walkthrough and 2–3 minute showcase script
+- `docs/SESSION2-SUBMISSION.md` — Ready-to-paste Session 2 application copy, deployment checklist, video script, and judges Q&A prep
 
 ---
 

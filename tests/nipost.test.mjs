@@ -7,6 +7,12 @@ import {
   runBatch,
   formatPostcode,
   buildKycHandoffPayload,
+  buildPhase2TierPreview,
+  buildWebhookEventPayload,
+  calculateCommercialBillingPreview,
+  estimateCreditUsage,
+  evaluateOriginAllowlist,
+  DEFAULT_ALLOWED_ORIGINS,
   SAMPLE,
   nextQuery,
 } from '../lib/nipost.ts';
@@ -256,4 +262,82 @@ test('surfaces 402, 403, 404, and 429 with rate-limit headers per PRD Section 8 
     response({}, 403)
   );
   assert.equal(r403.error.code, 'forbidden_origin_or_scope');
+});
+
+test('Phase 2 helpers: L1/L2/L3 credit estimator, origin allowlist guard, and tier preview', () => {
+  const l1Credits = estimateCreditUsage(2000, 1, 20);
+  assert.equal(l1Credits.creditsUsed, 0);
+  assert.equal(l1Credits.withinWelcomeGrant, true);
+
+  const l2Credits = estimateCreditUsage(1200, 2, 15);
+  assert.equal(l2Credits.l1Checks, 1020);
+  assert.equal(l2Credits.l2Checks, 180);
+  assert.equal(l2Credits.creditsUsed, 180);
+  assert.equal(l2Credits.creditsRemaining, 320);
+
+  const l3Exceed = estimateCreditUsage(3000, 3, 25);
+  assert.equal(l3Exceed.creditsUsed, 1500);
+  assert.equal(l3Exceed.withinWelcomeGrant, false);
+
+  const okOrigin = evaluateOriginAllowlist(
+    'https://onboarding.partnerfintech.ng/apply',
+    DEFAULT_ALLOWED_ORIGINS
+  );
+  assert.equal(okOrigin.allowed, true);
+  assert.equal(okOrigin.status, 200);
+
+  const blockedOrigin = evaluateOriginAllowlist(
+    'https://untrusted.example.com',
+    DEFAULT_ALLOWED_ORIGINS
+  );
+  assert.equal(blockedOrigin.allowed, false);
+  assert.equal(blockedOrigin.status, 403);
+  assert.equal(blockedOrigin.code, 'forbidden_origin_or_scope');
+
+  const httpOrigin = evaluateOriginAllowlist(
+    'http://onboarding.partnerfintech.ng',
+    DEFAULT_ALLOWED_ORIGINS
+  );
+  assert.equal(httpOrigin.allowed, false);
+  assert.equal(httpOrigin.status, 403);
+
+  const tier3 = buildPhase2TierPreview(SAMPLE, 3, 'Commercial');
+  assert.equal(tier3.level, 3);
+  assert.equal(tier3.credits_per_lookup, 2);
+  assert.equal(tier3.l3_building_use?.building_use_status, 'Commercial');
+});
+
+test('Phase 3 helpers: commercial per-verification billing model and signed webhook payload', () => {
+  const bill = calculateCommercialBillingPreview({
+    l1Count: 1000,
+    l2Count: 400,
+    l3Count: 150,
+    simulatedNairaPerCredit: 25,
+    applyWelcomeCredits: true,
+  });
+  assert.equal(bill.totalVerifications, 1550);
+  assert.equal(bill.grossCredits, 700);
+  assert.equal(bill.welcomeCreditsApplied, 500);
+  assert.equal(bill.billableCredits, 200);
+  assert.equal(bill.estimatedGatewayCostNgn, 5000);
+  assert.equal(bill.savingsPct >= 99, true);
+
+  const whCompleted = buildWebhookEventPayload(
+    'postcheck.verification.completed',
+    SAMPLE,
+    'https://api.partnerfintech.ng/webhooks/postcheck',
+    '2026-10-21T10:00:00.000Z'
+  );
+  assert.equal(whCompleted.event_type, 'postcheck.verification.completed');
+  assert.match(whCompleted.headers['X-PostCheck-Signature'], /^t=\d+,v1=[0-9a-f]{32}$/);
+  assert.equal(whCompleted.data.verdict, 'verified');
+
+  const whBatch = buildWebhookEventPayload(
+    'postcheck.batch.completed',
+    SAMPLE,
+    'https://api.partnerfintech.ng/webhooks/postcheck',
+    '2026-10-21T10:00:00.000Z'
+  );
+  assert.equal(whBatch.event_type, 'postcheck.batch.completed');
+  assert.equal(whBatch.data.total_checked, 4);
 });

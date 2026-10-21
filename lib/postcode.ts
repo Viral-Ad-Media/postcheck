@@ -43,6 +43,46 @@ export type FormattedPostcode = {
 
 export type KycVerdict = 'verified' | 'not_verified' | 'error';
 
+export type LookupTierLevel = 1 | 2 | 3;
+
+export type CreditEstimate = {
+  welcomeCreditsTotal: number;
+  l1Checks: number;
+  l2Checks: number;
+  l3Checks: number;
+  creditsUsed: number;
+  creditsRemaining: number;
+  withinWelcomeGrant: boolean;
+};
+
+export type OriginEvaluation = {
+  allowed: boolean;
+  normalizedOrigin: string | null;
+  status: 200 | 400 | 403;
+  code: 'origin_allowed' | 'invalid_origin' | 'forbidden_origin_or_scope';
+  message: string;
+};
+
+export type WebhookEventType =
+  | 'postcheck.verification.completed'
+  | 'postcheck.verification.rejected'
+  | 'postcheck.batch.completed';
+
+export type CommercialBillingPreview = {
+  totalVerifications: number;
+  l1FreeCount: number;
+  l2Count: number;
+  l3Count: number;
+  grossCredits: number;
+  welcomeCreditsApplied: number;
+  billableCredits: number;
+  simulatedNairaPerCredit: number;
+  estimatedGatewayCostNgn: number;
+  legacyAgentVisitCostNgn: number;
+  estimatedSavingsNgn: number;
+  savingsPct: number;
+};
+
 export type VerificationLogEntry = {
   id: string;
   checked_at: string;
@@ -167,5 +207,253 @@ export function buildKycHandoffPayload(
     ...(includeApiResponse
       ? { api_response: result.data ?? result.error ?? null }
       : {}),
+  };
+}
+
+export const WELCOME_CREDITS = 500;
+
+export const DEFAULT_ALLOWED_ORIGINS = [
+  'https://postcheck.viraladmedia.com',
+  'https://onboarding.partnerfintech.ng',
+  'https://kyc.lagosmfb.ng',
+];
+
+export function estimateCreditUsage(
+  totalApplicants: number,
+  level: LookupTierLevel,
+  highRiskEscalationPct = 15
+): CreditEstimate {
+  const safeTotal = Math.max(0, Math.min(100000, Math.round(totalApplicants)));
+  const clampedPct = Math.max(0, Math.min(100, Math.round(highRiskEscalationPct)));
+
+  if (level === 1) {
+    return {
+      welcomeCreditsTotal: WELCOME_CREDITS,
+      l1Checks: safeTotal,
+      l2Checks: 0,
+      l3Checks: 0,
+      creditsUsed: 0,
+      creditsRemaining: WELCOME_CREDITS,
+      withinWelcomeGrant: true,
+    };
+  }
+
+  const escalatedCount = Math.round((safeTotal * clampedPct) / 100);
+  const l1Count = safeTotal - escalatedCount;
+  const creditsPerCheck = level === 2 ? 1 : 2;
+  const creditsUsed = escalatedCount * creditsPerCheck;
+
+  return {
+    welcomeCreditsTotal: WELCOME_CREDITS,
+    l1Checks: l1Count,
+    l2Checks: level === 2 ? escalatedCount : 0,
+    l3Checks: level === 3 ? escalatedCount : 0,
+    creditsUsed,
+    creditsRemaining: Math.max(0, WELCOME_CREDITS - creditsUsed),
+    withinWelcomeGrant: creditsUsed <= WELCOME_CREDITS,
+  };
+}
+
+export function evaluateOriginAllowlist(
+  rawOrigin: string,
+  allowlist: ReadonlyArray<string>
+): OriginEvaluation {
+  const trimmed = rawOrigin.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return {
+      allowed: false,
+      normalizedOrigin: null,
+      status: 400,
+      code: 'invalid_origin',
+      message: 'Enter a valid origin URL including scheme (e.g. https://kyc.partnerbank.ng).',
+    };
+  }
+  if (parsed.protocol !== 'https:' && parsed.hostname !== 'localhost') {
+    return {
+      allowed: false,
+      normalizedOrigin: parsed.origin,
+      status: 403,
+      code: 'forbidden_origin_or_scope',
+      message: `Origin ${parsed.origin} rejected: publishable keys require HTTPS origins in production.`,
+    };
+  }
+  const normalizedAllowlist = allowlist
+    .map((item) => {
+      try {
+        return new URL(item.trim()).origin.toLowerCase();
+      } catch {
+        return item.trim().toLowerCase();
+      }
+    })
+    .filter(Boolean);
+
+  const normalizedOrigin = parsed.origin.toLowerCase();
+  if (normalizedAllowlist.includes(normalizedOrigin)) {
+    return {
+      allowed: true,
+      normalizedOrigin: parsed.origin,
+      status: 200,
+      code: 'origin_allowed',
+      message: `Origin ${parsed.origin} is allowlisted for publishable widget embeds.`,
+    };
+  }
+  return {
+    allowed: false,
+    normalizedOrigin: parsed.origin,
+    status: 403,
+    code: 'forbidden_origin_or_scope',
+    message: `NIPOST HTTP 403 (Forbidden): Origin ${parsed.origin} is not in the publishable key allowlist.`,
+  };
+}
+
+export function buildPhase2TierPreview(
+  code: string,
+  level: LookupTierLevel,
+  buildingUse: 'Residential' | 'Commercial' | 'Public' = 'Commercial'
+) {
+  const fmt = formatPostcode(code) ?? formatPostcode(SAMPLE)!;
+  return {
+    postcode: fmt.dashed,
+    compact: fmt.canonical,
+    display: fmt.display,
+    level,
+    kyb_gate:
+      level === 1
+        ? 'unlocked_phase1_sandbox'
+        : 'requires_nipost_kyb_approval_submitted_2026_10_04',
+    credits_per_lookup: level === 1 ? 0 : level === 2 ? 1 : 2,
+    segments: fmt.segments,
+    ...(level >= 2
+      ? {
+          l2_administrative_address: {
+            state_code: fmt.segments.state,
+            state_name:
+              fmt.segments.state === 'FC'
+                ? 'Federal Capital Territory'
+                : 'Nigeria State Registry',
+            lga_code: fmt.segments.lga,
+            district_code: fmt.segments.district,
+            area_code: fmt.segments.area,
+            recent_house_address_preview: `Unit ${fmt.segments.unit}, Area ${fmt.segments.area}, District ${fmt.segments.district} (Phase 2 L2 preview — requires KYB live key)`,
+          },
+        }
+      : {}),
+    ...(level >= 3
+      ? {
+          l3_building_use: {
+            building_use_status: buildingUse,
+            kyb_suitability:
+              buildingUse === 'Commercial'
+                ? 'Matches SME / Corporate Merchant KYC profile'
+                : 'Matches Retail / Individual Tier 2–3 KYC profile',
+          },
+        }
+      : {}),
+  };
+}
+
+export function calculateCommercialBillingPreview(params: {
+  l1Count: number;
+  l2Count: number;
+  l3Count: number;
+  simulatedNairaPerCredit: number;
+  applyWelcomeCredits?: boolean;
+}): CommercialBillingPreview {
+  const l1FreeCount = Math.max(0, Math.round(params.l1Count));
+  const l2Count = Math.max(0, Math.round(params.l2Count));
+  const l3Count = Math.max(0, Math.round(params.l3Count));
+  const rate = Math.max(0, Math.round(params.simulatedNairaPerCredit));
+  const applyWelcome = params.applyWelcomeCredits ?? true;
+
+  const totalVerifications = l1FreeCount + l2Count + l3Count;
+  const grossCredits = l2Count * 1 + l3Count * 2;
+  const welcomeCreditsApplied = applyWelcome
+    ? Math.min(WELCOME_CREDITS, grossCredits)
+    : 0;
+  const billableCredits = Math.max(0, grossCredits - welcomeCreditsApplied);
+  const estimatedGatewayCostNgn = billableCredits * rate;
+  // Traditional physical address verification / utility-bill review benchmark in Nigeria: ~₦2,500 per applicant
+  const legacyAgentVisitCostNgn = totalVerifications * 2500;
+  const estimatedSavingsNgn = Math.max(
+    0,
+    legacyAgentVisitCostNgn - estimatedGatewayCostNgn
+  );
+  const savingsPct =
+    legacyAgentVisitCostNgn > 0
+      ? Math.round((estimatedSavingsNgn / legacyAgentVisitCostNgn) * 100)
+      : 100;
+
+  return {
+    totalVerifications,
+    l1FreeCount,
+    l2Count,
+    l3Count,
+    grossCredits,
+    welcomeCreditsApplied,
+    billableCredits,
+    simulatedNairaPerCredit: rate,
+    estimatedGatewayCostNgn,
+    legacyAgentVisitCostNgn,
+    estimatedSavingsNgn,
+    savingsPct,
+  };
+}
+
+export function buildWebhookEventPayload(
+  eventType: WebhookEventType,
+  code: string,
+  endpointUrl = 'https://api.partnerfintech.ng/webhooks/postcheck',
+  timestampIso = new Date().toISOString()
+) {
+  const fmt = formatPostcode(code) ?? formatPostcode(SAMPLE)!;
+  const isRejected = eventType === 'postcheck.verification.rejected';
+  const unixTs = Math.floor(new Date(timestampIso).getTime() / 1000) || 1792569600;
+  // Deterministic preview digest (browser + Node safe, no real secret exposed)
+  const rawSigSource = `${unixTs}.${eventType}.${fmt.canonical}.whsec_postcheck_preview`;
+  let previewDigest = '';
+  for (let i = 0; i < rawSigSource.length && previewDigest.length < 32; i++) {
+    previewDigest += (
+      (rawSigSource.charCodeAt(i) * 31 + i * 17) &
+      0xff
+    )
+      .toString(16)
+      .padStart(2, '0');
+  }
+  previewDigest = previewDigest.padEnd(32, 'a').slice(0, 32);
+
+  return {
+    event_id: `evt_postcheck_${fmt.canonical.toLowerCase()}_${String(unixTs).slice(-6)}`,
+    event_type: eventType,
+    api_version: '2026-10-01',
+    created_at: timestampIso,
+    target_endpoint: endpointUrl,
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'PostCheck-Webhook-Dispatcher/1.0 (+https://postcheck.viraladmedia.com)',
+      'X-PostCheck-Event': eventType,
+      'X-PostCheck-Signature': `t=${unixTs},v1=${previewDigest}`,
+    },
+    data:
+      eventType === 'postcheck.batch.completed'
+        ? {
+            batch_id: `batch_${String(unixTs).slice(-6)}`,
+            total_checked: 4,
+            verified_or_canonical: 3,
+            rejected_invalid: 1,
+            level: 1,
+            credits_consumed: 0,
+            sample_postcode: fmt.dashed,
+          }
+        : {
+            postcode: isRejected ? 'NOT-A-POSTCODE' : fmt.dashed,
+            segments: isRejected ? null : fmt.segments,
+            verdict: isRejected ? 'not_verified' : 'verified',
+            level: 1,
+            checked_at: timestampIso,
+            source: 'NIPOST Postcode API — test environment',
+          },
   };
 }

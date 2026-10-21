@@ -8,22 +8,34 @@ import {
   type Result,
 } from './postcode.ts';
 export {
+  DEFAULT_ALLOWED_ORIGINS,
   SAMPLE,
   SAMPLE_BATCH,
   SEGMENTS,
+  WELCOME_CREDITS,
   buildKycHandoffPayload,
+  buildPhase2TierPreview,
+  buildWebhookEventPayload,
+  calculateCommercialBillingPreview,
   canonical,
+  estimateCreditUsage,
+  evaluateOriginAllowlist,
   formatPostcode,
   getKycVerdict,
   nextQuery,
 } from './postcode.ts';
 export type {
+  CommercialBillingPreview,
+  CreditEstimate,
   FormattedPostcode,
   KycVerdict,
+  LookupTierLevel,
   Operation,
+  OriginEvaluation,
   RateLimitInfo,
   Result,
   VerificationLogEntry,
+  WebhookEventType,
 } from './postcode.ts';
 
 export type BatchAuditItem = {

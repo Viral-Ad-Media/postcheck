@@ -67,10 +67,25 @@ export async function POST(request: Request) {
           { status: 400, headers }
         );
       }
-      return Response.json(
-        { items: await runBatch(rawCodes, key()) },
-        { headers }
-      );
+      const items = await runBatch(rawCodes, key());
+      const summary = {
+        total: items.length,
+        verified_active: items.filter(
+          (i) => i.classification === 'verified_active'
+        ).length,
+        canonical_unseeded: items.filter(
+          (i) => i.classification === 'canonical_unseeded'
+        ).length,
+        invalid_rejected: items.filter(
+          (i) => i.classification === 'invalid_rejected'
+        ).length,
+        upstream_error: items.filter(
+          (i) => i.classification === 'upstream_error'
+        ).length,
+        level: 1 as const,
+        credits_consumed: 0,
+      };
+      return Response.json({ items, summary }, { headers });
     }
     if (!ALLOWED_OPERATIONS.includes(body?.operation))
       return Response.json(
