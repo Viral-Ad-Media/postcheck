@@ -11,6 +11,7 @@ export const maxDuration = 60;
 
 const ALLOWED_OPERATIONS: ReadonlyArray<Operation> = [
   'search',
+  'nearby',
   'lookup',
   'assemble',
   'disassemble',

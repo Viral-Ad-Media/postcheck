@@ -188,6 +188,25 @@ test('disassemble and reference catalog operations validate schemas and format P
   assert.equal(handoff.level, 1);
   assert.equal(handoff.source, 'NIPOST Postcode API — test environment');
   assert.equal(handoff.applicant_demo?.test_data_only, true);
+
+  const handoffNoRaw = buildKycHandoffPayload(
+    lookupRes,
+    SAMPLE,
+    undefined,
+    false
+  );
+  assert.equal('api_response' in handoffNoRaw, false);
+
+  const nearbyRes = await callNipost(
+    'nearby',
+    { postcode: SAMPLE },
+    key,
+    async (url) => {
+      assert.match(url, /\/v1\/search\/nearby\?code=FC-01-A01-KP-27$/);
+      return response({ data: { units: [{ code: '27' }] } });
+    }
+  );
+  assert.equal(nearbyRes.ok, true);
 });
 
 test('runBatch classifies active, canonical unseeded, and invalid postcodes', async () => {

@@ -135,9 +135,22 @@ export async function callNipost(
     path =
       '/v1/search/autocomplete?q=' +
       encodeURIComponent(String(input.query).trim());
+  } else if (operation === 'nearby') {
+    const code = input.code ?? input.postcode;
+    if (!text(code, 64))
+      return fail(
+        400,
+        'invalid_input',
+        'Enter a postcode of 1–64 characters to search nearby units.'
+      );
+    path =
+      '/v1/search/nearby?code=' +
+      encodeURIComponent(String(code).trim());
   } else if (operation === 'lookup' || operation === 'bad-postcode') {
     const code =
-      operation === 'bad-postcode' ? 'NOT-A-POSTCODE' : input.code;
+      operation === 'bad-postcode'
+        ? 'NOT-A-POSTCODE'
+        : (input.code ?? input.postcode);
     if (!text(code, 64))
       return fail(
         400,
@@ -157,7 +170,8 @@ export async function callNipost(
     );
     path = '/v1/assembly/assemble';
   } else if (operation === 'disassemble') {
-    if (!text(input.code, 64))
+    const code = input.code ?? input.postcode;
+    if (!text(code, 64))
       return fail(
         400,
         'invalid_input',
@@ -165,7 +179,7 @@ export async function callNipost(
       );
     path =
       '/v1/assembly/disassemble?code=' +
-      encodeURIComponent(String(input.code).trim());
+      encodeURIComponent(String(code).trim());
   } else if (operation === 'states') {
     path = '/v1/reference/states';
   } else if (operation === 'lgas') {
@@ -312,7 +326,9 @@ export async function callNipost(
                   ? Array.isArray(data.districts)
                   : operation === 'areas'
                     ? Array.isArray(data.areas)
-                    : typeof data.valid === 'boolean';
+                    : operation === 'nearby'
+                      ? Array.isArray(data.units) || Array.isArray(data.suggestions) || typeof data === 'object'
+                      : typeof data.valid === 'boolean';
     if (!validShape)
       return fail(
         502,

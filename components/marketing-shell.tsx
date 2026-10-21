@@ -74,7 +74,7 @@ export function MarketingShell({
             </Badge>
           </Link>
 
-          <nav aria-label="Primary navigation" className="mkt-nav">
+          <nav aria-label="Primary" className="mkt-nav">
             <div className="mkt-nav-links">
               {NAV_LINKS.map((item) => {
                 const active = currentPath === item.href;

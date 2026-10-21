@@ -132,6 +132,7 @@ export function PostcodeWorkspace() {
   const [demoName, setDemoName] = useState('Adaeze Okonkwo (Demo Applicant)');
   const [demoPhone, setDemoPhone] = useState('+234 803 000 0127');
   const [demoTier, setDemoTier] = useState('Tier 2 Savings (KYC)');
+  const [includeRawApiInKyc, setIncludeRawApiInKyc] = useState(true);
   const [onboardingSubmitted, setOnboardingSubmitted] = useState(false);
 
   // FR-10: Session Verification Log state
@@ -283,9 +284,14 @@ export function PostcodeWorkspace() {
     setSearchResult(null);
     setMessage('');
     setOnboardingSubmitted(false);
+    if (configured) {
+      void verify(SAMPLE);
+    }
   }
 
-  async function verify() {
+  async function verify(codeOverride?: string) {
+    const targetCode = (codeOverride ?? query).trim();
+    if (!targetCode) return;
     setBusy(true);
     setMessage('');
     setResult(null);
@@ -293,9 +299,9 @@ export function PostcodeWorkspace() {
     setKycOpen(false);
     setOnboardingSubmitted(false);
     try {
-      const r: Result = await request('lookup', { code: query });
+      const r: Result = await request('lookup', { code: targetCode });
       setResult(r);
-      appendToVerificationLog(r, query);
+      appendToVerificationLog(r, targetCode);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -535,11 +541,16 @@ export function PostcodeWorkspace() {
 
   function copyKycHandoff() {
     if (!result) return;
-    const payload = buildKycHandoffPayload(result, query || SAMPLE, {
-      fullName: demoName,
-      phone: demoPhone,
-      accountTier: demoTier,
-    });
+    const payload = buildKycHandoffPayload(
+      result,
+      query || SAMPLE,
+      {
+        fullName: demoName,
+        phone: demoPhone,
+        accountTier: demoTier,
+      },
+      includeRawApiInKyc
+    );
     navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
     setCopiedKyc(true);
     setTimeout(() => setCopiedKyc(false), 2000);
@@ -547,11 +558,16 @@ export function PostcodeWorkspace() {
 
   function downloadKycHandoff() {
     if (!result) return;
-    const payload = buildKycHandoffPayload(result, query || SAMPLE, {
-      fullName: demoName,
-      phone: demoPhone,
-      accountTier: demoTier,
-    });
+    const payload = buildKycHandoffPayload(
+      result,
+      query || SAMPLE,
+      {
+        fullName: demoName,
+        phone: demoPhone,
+        accountTier: demoTier,
+      },
+      includeRawApiInKyc
+    );
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: 'application/json',
     });
@@ -595,12 +611,42 @@ export function PostcodeWorkspace() {
     : formatPostcode(query);
 
   const kycPayload = result
-    ? buildKycHandoffPayload(result, query || SAMPLE, {
-        fullName: demoName,
-        phone: demoPhone,
-        accountTier: demoTier,
-      })
+    ? buildKycHandoffPayload(
+        result,
+        query || SAMPLE,
+        {
+          fullName: demoName,
+          phone: demoPhone,
+          accountTier: demoTier,
+        },
+        includeRawApiInKyc
+      )
     : null;
+
+  const isRateLimited =
+    result &&
+    (!result.ok &&
+      (result.upstreamStatus === 429 || result.error?.code === 'rate_limited'));
+  const isInsufficientCredits =
+    result &&
+    (!result.ok &&
+      (result.upstreamStatus === 402 ||
+        result.error?.code === 'insufficient_credits'));
+  const isForbiddenOrigin =
+    result &&
+    (!result.ok &&
+      (result.upstreamStatus === 403 ||
+        result.error?.code === 'forbidden_origin_or_scope'));
+  const isInvalidCode =
+    result &&
+    ((result.ok &&
+      result.data?.valid === false &&
+      result.data?.status !== 'not_found') ||
+      (!result.ok && [400, 422].includes(result.upstreamStatus ?? 0)));
+  const isUnseededNotFound =
+    result &&
+    ((result.ok && result.data?.status === 'not_found') ||
+      (!result.ok && result.upstreamStatus === 404));
 
   const batchPassCount = batchItems.filter(
     (i) =>
@@ -635,7 +681,7 @@ export function PostcodeWorkspace() {
           VIRAL AD MEDIA <Badge variant="gold">LAGOS</Badge>
         </div>
         <p className="nav-label">WORKSPACE</p>
-        <nav aria-label="Main navigation">
+        <nav aria-label="Main">
           <TabsList className="w-full">
             <TabsTrigger
               value="capture"
@@ -669,7 +715,7 @@ export function PostcodeWorkspace() {
         </nav>
 
         <p className="nav-label nav-label-spaced">PRODUCT &amp; PITCH</p>
-        <nav aria-label="Marketing pages" className="sidebar-links">
+        <nav aria-label="Product and pitch" className="sidebar-links">
           <Link href="/overview" className="nav-item">
             <BookOpen size={17} />
             Overview
@@ -891,6 +937,58 @@ export function PostcodeWorkspace() {
           )}
 
           <TabsContent value="capture" className="tab-stage">
+            {/* PRD Section 5 & Section 10: Always-visible 3-step rail (mobile & desktop) */}
+            <ol
+              className="three-step-rail"
+              role="list"
+              aria-label="PostCheck 3-step verification flow"
+            >
+              <li
+                className={
+                  'rail-step' +
+                  (query.trim() ? ' step-done' : ' step-active')
+                }
+              >
+                <span className="rail-num">1</span>
+                <div className="rail-copy">
+                  <strong>Capture</strong>
+                  <span>Autocomplete, 37-state catalog, or 1-click sample</span>
+                </div>
+              </li>
+              <li
+                className={
+                  'rail-step' +
+                  (valid
+                    ? ' step-done'
+                    : query.trim()
+                      ? ' step-active'
+                      : '')
+                }
+              >
+                <span className="rail-num">2</span>
+                <div className="rail-copy">
+                  <strong>Validate</strong>
+                  <span>L1 NIPOST lookup + raw API response proof</span>
+                </div>
+              </li>
+              <li
+                className={
+                  'rail-step' +
+                  (onboardingSubmitted || copiedKyc
+                    ? ' step-done'
+                    : valid
+                      ? ' step-active'
+                      : '')
+                }
+              >
+                <span className="rail-num">3</span>
+                <div className="rail-copy">
+                  <strong>Continue onboarding</strong>
+                  <span>Copy KYC handoff JSON + session verification log</span>
+                </div>
+              </li>
+            </ol>
+
             <div className="content-grid">
               <div className="capture-stack">
                 <Card className="panel capture-panel">
@@ -968,6 +1066,7 @@ export function PostcodeWorkspace() {
                     {suggestions.length > 0 && (
                       <ul
                         className="suggestions"
+                        role="list"
                         aria-label="Postcode suggestions"
                       >
                         {suggestions.map((s, i) => (
@@ -1002,7 +1101,7 @@ export function PostcodeWorkspace() {
                     )}
 
                     <div className="sample-row">
-                      <span>Try a sandbox address</span>
+                      <span>Try a sandbox address (1-click verify)</span>
                       <button type="button" disabled={busy} onClick={sample}>
                         {SAMPLE}
                         <ArrowUpRight size={13} />
@@ -1012,7 +1111,7 @@ export function PostcodeWorkspace() {
                     <Button
                       className="verify-button"
                       disabled={!configured || !query.trim() || busy}
-                      onClick={verify}
+                      onClick={() => verify()}
                     >
                       {busy ? <Loader2 className="spin" /> : <ShieldCheck />}
                       Verify postcode
@@ -1041,24 +1140,40 @@ export function PostcodeWorkspace() {
                                 valid ||
                                 (result.ok && result.operation === 'assemble')
                                   ? 'success'
-                                  : 'destructive'
+                                  : isUnseededNotFound
+                                    ? 'gold'
+                                    : 'destructive'
                               }
                             >
-                              {valid
+                              {result.data?.valid === true
                                 ? 'VERIFIED · LEVEL 1'
-                                : result.ok && result.operation === 'assemble'
-                                  ? 'ASSEMBLED · CANONICAL'
-                                  : 'NOT VERIFIED'}
+                                : valid
+                                  ? 'VERIFIED · L1 CANONICAL'
+                                  : result.ok && result.operation === 'assemble'
+                                    ? 'ASSEMBLED · CANONICAL'
+                                    : isRateLimited
+                                      ? 'RATE LIMITED · HTTP 429'
+                                      : isInsufficientCredits
+                                        ? 'INSUFFICIENT CREDITS · HTTP 402'
+                                        : isForbiddenOrigin
+                                          ? 'FORBIDDEN · HTTP 403'
+                                          : isInvalidCode
+                                            ? 'NOT VERIFIED · INVALID CODE'
+                                            : isUnseededNotFound
+                                              ? 'NO RECORD FOUND · HTTP 404'
+                                              : 'API ERROR'}
                             </Badge>
                             <Badge variant="secondary">
                               {result.durationMs} ms
                             </Badge>
-                            {result.rateLimit?.remaining && (
-                              <Badge variant="outline">
-                                Rate limit: {result.rateLimit.remaining}/
-                                {result.rateLimit.limit ?? '—'}
-                              </Badge>
-                            )}
+                            {result.rateLimit &&
+                              (result.rateLimit.remaining !== null ||
+                                result.rateLimit.limit !== null) && (
+                                <Badge variant="outline">
+                                  Rate limit: {result.rateLimit.remaining ?? '—'}
+                                  /{result.rateLimit.limit ?? '—'}
+                                </Badge>
+                              )}
                           </div>
 
                           <h3>
@@ -1068,9 +1183,17 @@ export function PostcodeWorkspace() {
                                 ? 'Canonical postcode verified (L1 sandbox)'
                                 : result.ok && result.operation === 'assemble'
                                   ? 'Postcode assembled'
-                                  : result.ok
-                                    ? 'Invalid postcode rejected'
-                                    : 'Verification could not complete'}
+                                  : isRateLimited
+                                    ? 'NIPOST rate limit reached (HTTP 429)'
+                                    : isInsufficientCredits
+                                      ? 'Insufficient NIPOST credits (HTTP 402)'
+                                      : isForbiddenOrigin
+                                        ? 'Origin or key scope not allowed (HTTP 403)'
+                                        : isInvalidCode
+                                          ? 'Invalid postcode rejected'
+                                          : isUnseededNotFound
+                                            ? 'No matching record in sandbox'
+                                            : 'Verification could not complete'}
                           </h3>
                           <p>
                             {result.ok && result.operation === 'assemble'
@@ -1078,9 +1201,12 @@ export function PostcodeWorkspace() {
                               : result.data?.valid === true
                                 ? 'L1 validation complete. Identity and proof of residence remain separate checks.'
                                 : valid
-                                  ? 'NIPOST confirmed the 5-segment canonical format at L1. Identity and proof of residence remain separate checks.'
-                                  : (result.error?.message ??
-                                    'NIPOST rejected this input as an invalid postcode format.')}
+                                  ? 'NIPOST confirmed the 5-segment canonical format at L1 (status: not_found in unseeded sandbox). Identity and proof of residence remain separate checks.'
+                                  : isRateLimited
+                                    ? (result.error?.message ??
+                                      'Rate limit exceeded on NIPOST gateway. Observe X-RateLimit-Remaining and retry shortly.')
+                                    : (result.error?.message ??
+                                      'NIPOST rejected this input as an invalid postcode format (expected 5 segments: AA-99-H77-BB-55).')}
                           </p>
 
                           {/* FR-5: Decoded 5-segment pills inside verdict card */}
@@ -1453,6 +1579,20 @@ export function PostcodeWorkspace() {
                           </div>
                         </div>
 
+                        <label className="onboarding-checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={includeRawApiInKyc}
+                            onChange={(e) =>
+                              setIncludeRawApiInKyc(e.target.checked)
+                            }
+                          />
+                          <span>
+                            Include raw <code>api_response</code> object in KYC
+                            JSON payload (PRD Section 9 optional include)
+                          </span>
+                        </label>
+
                         <div className="onboarding-actions">
                           <Button
                             type="submit"
@@ -1567,14 +1707,17 @@ export function PostcodeWorkspace() {
                     ) : (
                       <div className="mkt-table-scroll log-table-wrap">
                         <table className="mkt-table">
+                          <caption className="sr-only">
+                            Session postcode verification log
+                          </caption>
                           <thead>
                             <tr>
-                              <th>Time</th>
-                              <th>Postcode</th>
-                              <th>Decoded Segments</th>
-                              <th>Verdict</th>
-                              <th>Level</th>
-                              <th>Action</th>
+                              <th scope="col">Time</th>
+                              <th scope="col">Postcode</th>
+                              <th scope="col">Decoded Segments</th>
+                              <th scope="col">Verdict</th>
+                              <th scope="col">Level</th>
+                              <th scope="col">Action</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1683,7 +1826,7 @@ export function PostcodeWorkspace() {
 
                 <Card className="panel flow-panel">
                   <h3>A focused verification flow</h3>
-                  <ol>
+                  <ol role="list">
                     <li>
                       <span className={query.trim() ? 'step-done' : ''}>1</span>
                       <div>
@@ -1815,13 +1958,16 @@ export function PostcodeWorkspace() {
                 {batchItems.length > 0 && (
                   <div className="mkt-table-scroll batch-table-wrap">
                     <table className="mkt-table">
+                      <caption className="sr-only">
+                        Batch postcode normalization audit results
+                      </caption>
                       <thead>
                         <tr>
-                          <th>#</th>
-                          <th>Raw Input</th>
-                          <th>Normalized (`AA-99-H77-BB-55`)</th>
-                          <th>Classification</th>
-                          <th>Latency</th>
+                          <th scope="col">#</th>
+                          <th scope="col">Raw Input</th>
+                          <th scope="col">Normalized (`AA-99-H77-BB-55`)</th>
+                          <th scope="col">Classification</th>
+                          <th scope="col">Latency</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1997,7 +2143,7 @@ export function PostcodeWorkspace() {
               Luqman Adeyemo · Lead: Azeez Ademola)
             </span>
             <nav
-              aria-label="Workspace footer links"
+              aria-label="Workspace footer"
               className="workspace-footer-links"
             >
               <Link href="/overview">Overview</Link>

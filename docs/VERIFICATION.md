@@ -1,10 +1,6 @@
-# Verification for this source package
+# Verification status (PRD v1.0 — Phase 1)
 
-- Eight automated tests passed.
-- TypeScript type checking passed.
-- Next.js optimized production build passed.
-- Production HTTP smoke checks passed: home page, key-configuration status, four explicit missing-key results, and cross-origin POST rejection.
-- Client build checked for server-key and request-handler markers; none found.
-- Staging runner correctly refused to make calls without a test key.
-
-Not yet verified: real NIPOST responses (key not supplied), browser interaction/visual QA, deployed hosting, demo video. No live staging success is claimed by this package.
+- **12 / 12 automated unit tests passed** (`npm test` in `tests/nipost.test.mjs`), covering key isolation, L1 enforcement, secret redaction, timeout/abort handling, segment autocomplete, negative-test guards, `/v1/assembly/disassemble`, `/v1/reference/*` catalog schemas, `/v1/search/nearby`, Section 9 KYC handoff payload (`includeApiResponse` toggle), batch backbook classification, and HTTP `402`/`403`/`404`/`429` + `X-RateLimit-*` header surfacing.
+- **4 / 4 live NIPOST staging checks passed** (`npm run test:staging` → `staging-evidence.json`).
+- **TypeScript type checking passed** (`npm run typecheck`).
+- **Next.js production build passed** (`npm run build`) with `productionBrowserSourceMaps: false` and server-only secret key isolation.

@@ -1,5 +1,6 @@
 export type Operation =
   | 'search'
+  | 'nearby'
   | 'lookup'
   | 'assemble'
   | 'disassemble'
@@ -127,7 +128,8 @@ export function buildKycHandoffPayload(
     fullName: string;
     phone: string;
     accountTier: string;
-  }
+  },
+  includeApiResponse = true
 ) {
   const rawCode =
     typeof result.data?.postcode === 'string'
@@ -162,6 +164,8 @@ export function buildKycHandoffPayload(
       honesty_rule:
         'A valid postcode confirms a location reference; it does not prove who lives there. Identity and proof of residence remain separate checks.',
     },
-    api_response: result.data ?? result.error ?? null,
+    ...(includeApiResponse
+      ? { api_response: result.data ?? result.error ?? null }
+      : {}),
   };
 }
