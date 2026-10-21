@@ -3133,6 +3133,242 @@ footer strong {
   border-radius: 12px;
 }
 
+/* PRD FR-5, FR-9, FR-10: Decoded Verdict Chips, Mock Onboarding Flow & Session Verification Log */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.capture-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.verdict-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.verdict-decoded-segments {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.verdict-seg-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 58px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  background: var(--surf);
+  border: 1px solid var(--line);
+}
+
+.verdict-seg-chip small {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--faint);
+}
+
+.verdict-seg-chip strong {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.onboarding-fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.onboarding-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.onboarding-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.onboarding-tier-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-tier-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.onboarding-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.onboarding-radio-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  background: var(--bg-alt);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 150ms var(--ease-out), background-color 150ms var(--ease-out);
+}
+
+.onboarding-radio-pill input {
+  accent-color: var(--gold);
+  margin: 0;
+}
+
+.onboarding-radio-pill.active {
+  border-color: var(--gold-line);
+  background: var(--gold-wash);
+  color: var(--ink);
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.bank-compliance-view {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--coal);
+  color: var(--on-coal);
+  border: 1px solid rgba(235, 199, 0, 0.35);
+}
+
+.bank-compliance-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.bank-compliance-head h4 {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #FFFFFF;
+}
+
+.bank-compliance-head code {
+  font-family: var(--font-mono);
+  color: var(--gold);
+}
+
+.bank-compliance-view pre {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #E2E4EC;
+}
+
+.empty-log-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.log-table-wrap {
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+}
+
+.log-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.log-segments-inline {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.log-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--bg-alt);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.log-copy-btn:hover {
+  border-color: var(--gold-line);
+  background: var(--gold-wash);
+}
+
+.log-count-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+@media (max-width: 650px) {
+  .onboarding-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 960px) {
   .mkt-hero-grid,
   .mkt-impact-grid,

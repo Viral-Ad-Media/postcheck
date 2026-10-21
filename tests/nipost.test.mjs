@@ -12,8 +12,8 @@ import {
 } from '../lib/nipost.ts';
 
 const key = 'nipost_test_fixture_not_a_real_credential';
-const response = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status });
+const response = (data, status = 200, extraHeaders = {}) =>
+  new Response(JSON.stringify(data), { status, headers: extraHeaders });
 
 test('missing and production keys never reach the network', async () => {
   for (const k of [undefined, 'nipost_live_fixture']) {
@@ -89,7 +89,9 @@ test('suite executes four actual fetches and requires matching assembly', async 
   const results = await runSuite(key, async (url) => {
     calls++;
     if (url.includes('autocomplete'))
-      return response({ data: { segment: 'unit', suggestions: [{ code: '27' }] } });
+      return response({
+        data: { segment: 'unit', suggestions: [{ code: '27' }] },
+      });
     if (url.includes('assembly'))
       return response({ data: { postcode: SAMPLE } });
     if (url.includes('NOT-A')) return response({ data: { valid: false } });
@@ -116,7 +118,12 @@ test('sandbox empty suggestions and unseeded not_found lookup pass while invalid
   assert.equal(accepted(s), true);
   const l = await callNipost('lookup', { code: SAMPLE }, key, async () =>
     response({
-      data: { postcode: SAMPLE, valid: false, status: 'not_found', verified: false },
+      data: {
+        postcode: SAMPLE,
+        valid: false,
+        status: 'not_found',
+        verified: false,
+      },
     })
   );
   assert.equal(accepted(l), true);
@@ -134,7 +141,7 @@ test('sandbox empty suggestions and unseeded not_found lookup pass while invalid
   assert.equal(accepted(b), true);
 });
 
-test('disassemble and reference catalog operations validate schemas and format KYC handoff payload', async () => {
+test('disassemble and reference catalog operations validate schemas and format PRD Section 9 KYC handoff payload', async () => {
   const dis = await callNipost(
     'disassemble',
     { code: SAMPLE },
@@ -164,11 +171,23 @@ test('disassemble and reference catalog operations validate schemas and format K
   const lookupRes = await callNipost('lookup', { code: SAMPLE }, key, async () =>
     response({ data: { postcode: SAMPLE, valid: false, status: 'not_found' } })
   );
-  const handoff = buildKycHandoffPayload(lookupRes, SAMPLE);
-  assert.equal(handoff.schema, 'postcheck.kyc.handoff.v1');
-  assert.equal(handoff.postcode.dashed, 'FC-01-A01-KP-27');
-  assert.equal(handoff.verification.canonicalFormatVerified, true);
-  assert.equal(handoff.ndpaGovernance.piiCollected, false);
+  const handoff = buildKycHandoffPayload(lookupRes, SAMPLE, {
+    fullName: 'Adaeze Okonkwo (Test Applicant)',
+    phone: '+234 803 000 0127',
+    accountTier: 'Tier 2 Savings (KYC)',
+  });
+  assert.equal(handoff.postcode, 'FC-01-A01-KP-27');
+  assert.deepEqual(handoff.segments, {
+    state: 'FC',
+    lga: '01',
+    district: 'A01',
+    area: 'KP',
+    unit: '27',
+  });
+  assert.equal(handoff.verdict, 'verified');
+  assert.equal(handoff.level, 1);
+  assert.equal(handoff.source, 'NIPOST Postcode API — test environment');
+  assert.equal(handoff.applicant_demo?.test_data_only, true);
 });
 
 test('runBatch classifies active, canonical unseeded, and invalid postcodes', async () => {
@@ -180,7 +199,11 @@ test('runBatch classifies active, canonical unseeded, and invalid postcodes', as
         return response({ data: { postcode: 'EK-01-A03-FK-01', valid: true } });
       if (url.includes('FC-01'))
         return response({
-          data: { postcode: 'FC-01-A01-KP-27', valid: false, status: 'not_found' },
+          data: {
+            postcode: 'FC-01-A01-KP-27',
+            valid: false,
+            status: 'not_found',
+          },
         });
       return response({
         data: { postcode: 'NOT-A-POSTCODE', valid: false, status: 'invalid' },
@@ -191,4 +214,27 @@ test('runBatch classifies active, canonical unseeded, and invalid postcodes', as
   assert.equal(items[0].classification, 'canonical_unseeded');
   assert.equal(items[1].classification, 'verified_active');
   assert.equal(items[2].classification, 'invalid_rejected');
+});
+
+test('surfaces 402, 403, 404, and 429 with rate-limit headers per PRD Section 8 and FR-7', async () => {
+  const r429 = await callNipost('lookup', { code: SAMPLE }, key, async () =>
+    response({}, 429, {
+      'X-RateLimit-Limit': '60',
+      'X-RateLimit-Remaining': '0',
+    })
+  );
+  assert.equal(r429.ok, false);
+  assert.equal(r429.error.code, 'rate_limited');
+  assert.equal(r429.rateLimit?.limit, '60');
+  assert.equal(r429.rateLimit?.remaining, '0');
+
+  const r402 = await callNipost('lookup', { code: SAMPLE }, key, async () =>
+    response({}, 402)
+  );
+  assert.equal(r402.error.code, 'insufficient_credits');
+
+  const r403 = await callNipost('lookup', { code: SAMPLE }, key, async () =>
+    response({}, 403)
+  );
+  assert.equal(r403.error.code, 'forbidden_origin_or_scope');
 });

@@ -4,6 +4,7 @@ import {
   canonical,
   formatPostcode,
   type Operation,
+  type RateLimitInfo,
   type Result,
 } from './postcode.ts';
 export {
@@ -13,9 +14,17 @@ export {
   buildKycHandoffPayload,
   canonical,
   formatPostcode,
+  getKycVerdict,
   nextQuery,
 } from './postcode.ts';
-export type { FormattedPostcode, Operation, Result } from './postcode.ts';
+export type {
+  FormattedPostcode,
+  KycVerdict,
+  Operation,
+  RateLimitInfo,
+  Result,
+  VerificationLogEntry,
+} from './postcode.ts';
 
 export type BatchAuditItem = {
   input: string;
@@ -33,6 +42,44 @@ export type BatchAuditItem = {
   at: string;
 };
 
+function defaultStatusErrorMessage(status: number): {
+  code: string;
+  message: string;
+} {
+  if (status === 402) {
+    return {
+      code: 'insufficient_credits',
+      message:
+        'NIPOST returned HTTP 402 (Insufficient Credits). Level 1 lookups are free; check account credit balance.',
+    };
+  }
+  if (status === 403) {
+    return {
+      code: 'forbidden_origin_or_scope',
+      message:
+        'NIPOST returned HTTP 403 (Forbidden). Verify key scope and allowed origin settings.',
+    };
+  }
+  if (status === 404) {
+    return {
+      code: 'not_found',
+      message:
+        'No matching postcode record was found in the NIPOST sandbox dataset.',
+    };
+  }
+  if (status === 429) {
+    return {
+      code: 'rate_limited',
+      message:
+        'NIPOST rate limit reached (HTTP 429). Please wait a moment before retrying.',
+    };
+  }
+  return {
+    code: 'upstream_error',
+    message: 'NIPOST could not complete this request.',
+  };
+}
+
 export async function callNipost(
   operation: Operation,
   input: Record<string, unknown>,
@@ -49,7 +96,8 @@ export async function callNipost(
     status: number,
     code: string,
     message: string,
-    upstreamStatus: number | null = null
+    upstreamStatus: number | null = null,
+    rateLimit?: RateLimitInfo
   ): Result => ({
     ...base(),
     ok: false,
@@ -57,6 +105,7 @@ export async function callNipost(
     upstreamStatus,
     source: upstreamStatus === null ? 'application' : 'nipost',
     error: { code, message },
+    ...(rateLimit ? { rateLimit } : {}),
   });
   if (!key)
     return fail(
@@ -167,6 +216,15 @@ export async function callNipost(
       redirect: 'error',
       cache: 'no-store',
     });
+
+    const rlLimit = response.headers?.get?.('x-ratelimit-limit') ?? null;
+    const rlRemaining =
+      response.headers?.get?.('x-ratelimit-remaining') ?? null;
+    const rateLimit: RateLimitInfo | undefined =
+      rlLimit !== null || rlRemaining !== null
+        ? { limit: rlLimit, remaining: rlRemaining }
+        : undefined;
+
     // Never forward request headers or unbounded upstream content to the browser.
     const raw = await response.text();
     if (raw.length > 100000)
@@ -174,7 +232,8 @@ export async function callNipost(
         502,
         'invalid_response',
         'NIPOST returned an oversized response.',
-        response.status
+        response.status,
+        rateLimit
       );
     let payload: {
       data?: Record<string, unknown>;
@@ -192,7 +251,8 @@ export async function callNipost(
         502,
         'invalid_response',
         'NIPOST returned an unreadable response.',
-        response.status
+        response.status,
+        rateLimit
       );
     }
     if (!payload || typeof payload !== 'object')
@@ -200,18 +260,21 @@ export async function callNipost(
         502,
         'invalid_response',
         'NIPOST returned an unexpected response.',
-        response.status
+        response.status,
+        rateLimit
       );
     if (!response.ok || payload.error) {
+      const fallback = defaultStatusErrorMessage(response.status);
       return fail(
         response.ok ? 502 : response.status,
         typeof payload.error?.code === 'string'
           ? payload.error.code.slice(0, 100)
-          : 'upstream_error',
+          : fallback.code,
         typeof payload.error?.message === 'string'
           ? payload.error.message.slice(0, 500)
-          : 'NIPOST could not complete this request.',
-        response.status
+          : fallback.message,
+        response.status,
+        rateLimit
       );
     }
     const data = payload.data;
@@ -220,7 +283,8 @@ export async function callNipost(
         502,
         'invalid_response',
         'NIPOST returned no usable data.',
-        response.status
+        response.status,
+        rateLimit
       );
     const validShape =
       operation === 'search'
@@ -254,7 +318,8 @@ export async function callNipost(
         502,
         'invalid_response',
         'The NIPOST response did not match the documented schema.',
-        response.status
+        response.status,
+        rateLimit
       );
     return {
       ...base(),
@@ -263,6 +328,7 @@ export async function callNipost(
       upstreamStatus: response.status,
       source: 'nipost',
       data,
+      ...(rateLimit ? { rateLimit } : {}),
     };
   } catch {
     return fail(

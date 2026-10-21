@@ -12,6 +12,7 @@ import {
   ChevronRight,
   CircleHelp,
   ClipboardCheck,
+  Clock,
   Code2,
   Copy,
   Database,
@@ -19,6 +20,7 @@ import {
   FileSpreadsheet,
   Fingerprint,
   FlaskConical,
+  History,
   Layers3,
   Loader2,
   LockKeyhole,
@@ -28,6 +30,8 @@ import {
   ShieldCheck,
   SplitSquareVertical,
   Terminal,
+  Trash2,
+  UserCheck,
   X,
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -59,13 +63,19 @@ import {
   SAMPLE_BATCH,
   SEGMENTS,
   buildKycHandoffPayload,
+  canonical,
+  formatPostcode,
+  getKycVerdict,
   nextQuery,
   type Result,
+  type VerificationLogEntry,
 } from '@/lib/postcode';
 
 type Evidence = Result & { passed: boolean };
 type Suggestion = { code: string; label?: string };
 type NamedCode = { code: string; name?: string };
+
+const LOG_STORAGE_KEY = 'postcheck-verification-log-v1';
 
 const names: Record<string, string> = {
   search: 'Postcode autocomplete',
@@ -75,6 +85,7 @@ const names: Record<string, string> = {
 };
 
 const SEGMENT_LENGTHS = [2, 4, 7, 9, 11];
+const SEGMENT_CAPTIONS = ['State', 'LGA', 'District', 'Area', 'Unit'] as const;
 
 async function request(
   operation: string,
@@ -115,20 +126,80 @@ export function PostcodeWorkspace() {
   const [responseOpen, setResponseOpen] = useState(false);
   const [kycOpen, setKycOpen] = useState(false);
   const [copiedKyc, setCopiedKyc] = useState(false);
+  const [copiedLogId, setCopiedLogId] = useState<string | null>(null);
 
-  // Phase 2: Guided Reference Catalog state
+  // FR-9: Continue Onboarding — Mock Account-Opening Flow state
+  const [demoName, setDemoName] = useState('Adaeze Okonkwo (Demo Applicant)');
+  const [demoPhone, setDemoPhone] = useState('+234 803 000 0127');
+  const [demoTier, setDemoTier] = useState('Tier 2 Savings (KYC)');
+  const [onboardingSubmitted, setOnboardingSubmitted] = useState(false);
+
+  // FR-10: Session Verification Log state
+  const [verificationLog, setVerificationLog] = useState<
+    VerificationLogEntry[]
+  >([]);
+
+  // FR-3: Reference Catalog state
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [statesList, setStatesList] = useState<NamedCode[]>([]);
   const [lgasList, setLgasList] = useState<NamedCode[]>([]);
   const [districtsList, setDistrictsList] = useState<NamedCode[]>([]);
   const [areasList, setAreasList] = useState<NamedCode[]>([]);
 
-  // Phase 2: Batch Backbook Audit state
+  // FR-11 (P2): Batch Backbook Audit state
   const [batchInput, setBatchInput] = useState(SAMPLE_BATCH.join('\n'));
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchItems, setBatchItems] = useState<BatchAuditItem[]>([]);
 
   const generation = useRef(0);
+  // FR-1: Client-side autocomplete query cache
+  const searchCache = useRef<Map<string, Result>>(new Map());
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(LOG_STORAGE_KEY) || localStorage.getItem(LOG_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setVerificationLog(parsed.slice(0, 25));
+      }
+    } catch {}
+  }, []);
+
+  function appendToVerificationLog(res: Result, rawCode: string) {
+    const codeStr =
+      typeof res.data?.postcode === 'string' ? res.data.postcode : rawCode;
+    const fmt = formatPostcode(codeStr);
+    const entry: VerificationLogEntry = {
+      id: `${res.at}-${Math.random().toString(36).slice(2, 7)}`,
+      checked_at: res.at,
+      postcode: fmt?.dashed ?? (codeStr.trim() || SAMPLE),
+      segments: fmt?.segments ?? null,
+      verdict: getKycVerdict(res),
+      level: 1,
+      durationMs: res.durationMs,
+      upstreamStatus: res.upstreamStatus,
+      source: 'NIPOST Postcode API — test environment',
+      api_response: (res.data ?? res.error ?? null) as Record<
+        string,
+        unknown
+      > | null,
+    };
+    setVerificationLog((prev) => {
+      const next = [entry, ...prev].slice(0, 25);
+      try {
+        localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }
+
+  function clearVerificationLog() {
+    setVerificationLog([]);
+    try {
+      localStorage.removeItem(LOG_STORAGE_KEY);
+      sessionStorage.removeItem(LOG_STORAGE_KEY);
+    } catch {}
+  }
 
   useEffect(() => {
     fetch('/api/postcode', { cache: 'no-store' })
@@ -143,8 +214,17 @@ export function PostcodeWorkspace() {
       });
   }, []);
 
+  // FR-1: 300ms debounce + client-side cache for repeated queries
   useEffect(() => {
-    if (!configured || !query.trim() || selected === query) {
+    const trimmed = query.trim();
+    if (!configured || !trimmed || selected === query) {
+      setSearchBusy(false);
+      return;
+    }
+    const cacheKey = canonical(trimmed);
+    const cached = searchCache.current.get(cacheKey);
+    if (cached) {
+      setSearchResult(cached);
       setSearchBusy(false);
       return;
     }
@@ -153,7 +233,12 @@ export function PostcodeWorkspace() {
     const timer = setTimeout(async () => {
       setSearchBusy(true);
       try {
-        const r = await request('search', { query }, controller.signal);
+        const r: Result = await request(
+          'search',
+          { query: trimmed },
+          controller.signal
+        );
+        if (r.ok) searchCache.current.set(cacheKey, r);
         if (id === generation.current) setSearchResult(r);
       } catch {
         if (!controller.signal.aborted && id === generation.current)
@@ -161,7 +246,7 @@ export function PostcodeWorkspace() {
       } finally {
         if (id === generation.current) setSearchBusy(false);
       }
-    }, 400);
+    }, 300);
     return () => {
       clearTimeout(timer);
       controller.abort();
@@ -175,6 +260,7 @@ export function PostcodeWorkspace() {
     setResult(null);
     setSearchResult(null);
     setMessage('');
+    setOnboardingSubmitted(false);
   }
 
   function choose(s: Suggestion) {
@@ -186,6 +272,7 @@ export function PostcodeWorkspace() {
     setQuery(value);
     setSearchResult(null);
     setResult(null);
+    setOnboardingSubmitted(false);
     if (value.replace(/[ -]/g, '').length === 11) setSelected(value);
   }
 
@@ -195,6 +282,7 @@ export function PostcodeWorkspace() {
     setResult(null);
     setSearchResult(null);
     setMessage('');
+    setOnboardingSubmitted(false);
   }
 
   async function verify() {
@@ -203,8 +291,11 @@ export function PostcodeWorkspace() {
     setResult(null);
     setResponseOpen(false);
     setKycOpen(false);
+    setOnboardingSubmitted(false);
     try {
-      setResult(await request('lookup', { code: query }));
+      const r: Result = await request('lookup', { code: query });
+      setResult(r);
+      appendToVerificationLog(r, query);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -217,6 +308,7 @@ export function PostcodeWorkspace() {
     setMessage('');
     setResult(null);
     setResponseOpen(false);
+    setOnboardingSubmitted(false);
     try {
       const r: Result = await request('assemble', segments);
       setResult(r);
@@ -224,6 +316,7 @@ export function PostcodeWorkspace() {
         setQuery(r.data.postcode);
         setSelected(r.data.postcode);
         setSearchResult(null);
+        appendToVerificationLog(r, r.data.postcode);
       }
     } catch (e) {
       setMessage((e as Error).message);
@@ -281,7 +374,9 @@ export function PostcodeWorkspace() {
     setCatalogBusy(true);
     try {
       const r: Result = await request('lgas', { state: stateCode });
-      const lgas = (r.ok && Array.isArray(r.data?.lgas) ? r.data.lgas : []) as NamedCode[];
+      const lgas = (
+        r.ok && Array.isArray(r.data?.lgas) ? r.data.lgas : []
+      ) as NamedCode[];
       setLgasList(lgas);
       const nextLga = lgas[0]?.code ?? '01';
       setSegments((prev) => ({ ...prev, state: stateCode, lga: nextLga }));
@@ -391,7 +486,7 @@ export function PostcodeWorkspace() {
       [
         JSON.stringify(
           {
-            project: 'PostCheck by Viral Ad Media',
+            project: 'PostCheck by Viral Ad Media (Lagos Team)',
             environment: 'NIPOST test dataset',
             level: 1,
             exportedAt: new Date().toISOString(),
@@ -440,10 +535,47 @@ export function PostcodeWorkspace() {
 
   function copyKycHandoff() {
     if (!result) return;
-    const payload = buildKycHandoffPayload(result, query || SAMPLE);
+    const payload = buildKycHandoffPayload(result, query || SAMPLE, {
+      fullName: demoName,
+      phone: demoPhone,
+      accountTier: demoTier,
+    });
     navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
     setCopiedKyc(true);
     setTimeout(() => setCopiedKyc(false), 2000);
+  }
+
+  function downloadKycHandoff() {
+    if (!result) return;
+    const payload = buildKycHandoffPayload(result, query || SAMPLE, {
+      fullName: demoName,
+      phone: demoPhone,
+      accountTier: demoTier,
+    });
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `postcheck-kyc-${payload.compact.toLowerCase()}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function copyLogEntry(entry: VerificationLogEntry) {
+    const payload = {
+      postcode: entry.postcode,
+      segments: entry.segments,
+      verdict: entry.verdict,
+      level: entry.level,
+      checked_at: entry.checked_at,
+      source: entry.source,
+      api_response: entry.api_response,
+    };
+    navigator.clipboard?.writeText(JSON.stringify(payload, null, 2));
+    setCopiedLogId(entry.id);
+    setTimeout(() => setCopiedLogId(null), 1800);
   }
 
   const suggestions = (searchResult?.data?.suggestions ?? []) as Suggestion[];
@@ -453,8 +585,22 @@ export function PostcodeWorkspace() {
     result.operation === 'lookup' &&
     (result.data?.valid === true || result.data?.status === 'not_found');
   const cleanChars = Math.min(query.replace(/[^A-Za-z0-9]/g, '').length, 11);
-  const kycPayload =
-    result && valid ? buildKycHandoffPayload(result, query || SAMPLE) : null;
+
+  const decodedCurrent = result
+    ? formatPostcode(
+        typeof result.data?.postcode === 'string'
+          ? result.data.postcode
+          : query || SAMPLE
+      )
+    : formatPostcode(query);
+
+  const kycPayload = result
+    ? buildKycHandoffPayload(result, query || SAMPLE, {
+        fullName: demoName,
+        phone: demoPhone,
+        accountTier: demoTier,
+      })
+    : null;
 
   const batchPassCount = batchItems.filter(
     (i) =>
@@ -486,7 +632,7 @@ export function PostcodeWorkspace() {
           PostCheck<span className="brand-dot">.</span>
         </Link>
         <div className="workspace-label">
-          VIRAL AD MEDIA <Badge variant="gold">LABS</Badge>
+          VIRAL AD MEDIA <Badge variant="gold">LAGOS</Badge>
         </div>
         <p className="nav-label">WORKSPACE</p>
         <nav aria-label="Main navigation">
@@ -562,7 +708,7 @@ export function PostcodeWorkspace() {
             <AvatarFallback>VA</AvatarFallback>
           </Avatar>
           <div>
-            Viral Ad Media<small>Abuja, FCT · Nigeria</small>
+            Viral Ad Media<small>Lagos Team · Session 2</small>
           </div>
           <LockKeyhole size={14} />
         </div>
@@ -585,6 +731,13 @@ export function PostcodeWorkspace() {
             </strong>
           </nav>
           <div className="topbar-right">
+            {verificationLog.length > 0 && (
+              <Badge variant="secondary" className="log-count-pill">
+                <History size={12} />
+                {verificationLog.length}{' '}
+                {verificationLog.length === 1 ? 'check' : 'checks'} logged
+              </Badge>
+            )}
             <Badge variant="gold" className="badge">
               <i />
               Sandbox
@@ -739,388 +892,762 @@ export function PostcodeWorkspace() {
 
           <TabsContent value="capture" className="tab-stage">
             <div className="content-grid">
-              <Card className="panel capture-panel">
-                <CardHeader className="panel-heading">
-                  <span className="panel-icon">
-                    <MapPin size={20} />
-                  </span>
-                  <div>
-                    <CardTitle>Verify an address postcode</CardTitle>
-                    <CardDescription>
-                      Start with a postcode. Let the data do the checking.
-                    </CardDescription>
-                  </div>
-                  <CardAction>
-                    <Badge variant="secondary" className="step-tag">
-                      {valid ? '03 / 03' : '01 / 03'}
-                    </Badge>
-                  </CardAction>
-                </CardHeader>
-
-                <CardContent className="panel-body">
-                  <div className="field-heading">
-                    <Label htmlFor="postcode">Postcode search</Label>
-                    <span>Segment-aware autocomplete</span>
-                  </div>
-                  <div className="search-wrap">
-                    <Search size={19} />
-                    <Input
-                      id="postcode"
-                      name="postal-code"
-                      disabled={busy}
-                      value={query}
-                      onChange={(e) => changeQuery(e.target.value)}
-                      placeholder="Start typing, e.g. FC 01 A01…"
-                      maxLength={64}
-                      autoComplete="postal-code"
-                      aria-describedby="search-help"
-                    />
-                    {searchBusy && <Loader2 className="spin" size={18} />}
-                  </div>
-
-                  <div className="seg-meter" aria-hidden="true">
-                    <div className="seg-bars">
-                      {SEGMENT_LENGTHS.map((threshold, idx) => {
-                        const prev = idx === 0 ? 0 : SEGMENT_LENGTHS[idx - 1];
-                        const filled = cleanChars >= threshold;
-                        const active =
-                          cleanChars > prev && cleanChars < threshold;
-                        return (
-                          <span
-                            key={threshold}
-                            className={
-                              'seg-bar' +
-                              (idx === 2 ? ' wide' : '') +
-                              (filled ? ' filled' : active ? ' active' : '')
-                            }
-                          />
-                        );
-                      })}
+              <div className="capture-stack">
+                <Card className="panel capture-panel">
+                  <CardHeader className="panel-heading">
+                    <span className="panel-icon">
+                      <MapPin size={20} />
+                    </span>
+                    <div>
+                      <CardTitle>Verify an address postcode</CardTitle>
+                      <CardDescription>
+                        Start with a postcode. Let the data do the checking.
+                      </CardDescription>
                     </div>
-                    <span className="seg-counter">{cleanChars} / 11</span>
-                  </div>
+                    <CardAction>
+                      <Badge variant="secondary" className="step-tag">
+                        {onboardingSubmitted
+                          ? '03 / 03'
+                          : valid
+                            ? '02 / 03'
+                            : '01 / 03'}
+                      </Badge>
+                    </CardAction>
+                  </CardHeader>
 
-                  <p className="field-help" id="search-help">
-                    Search by postcode segments, not a street name.
-                  </p>
+                  <CardContent className="panel-body">
+                    <div className="field-heading">
+                      <Label htmlFor="postcode">Postcode search</Label>
+                      <span>Segment-aware autocomplete (300ms + cache)</span>
+                    </div>
+                    <div className="search-wrap">
+                      <Search size={19} />
+                      <Input
+                        id="postcode"
+                        name="postal-code"
+                        disabled={busy}
+                        value={query}
+                        onChange={(e) => changeQuery(e.target.value)}
+                        placeholder="Start typing, e.g. FC 01 A01…"
+                        maxLength={64}
+                        autoComplete="postal-code"
+                        autoCorrect="off"
+                        autoCapitalize="characters"
+                        spellCheck={false}
+                        aria-describedby="search-help"
+                      />
+                      {searchBusy && <Loader2 className="spin" size={18} />}
+                    </div>
 
-                  {suggestions.length > 0 && (
-                    <ul
-                      className="suggestions"
-                      aria-label="Postcode suggestions"
-                    >
-                      {suggestions.map((s, i) => (
-                        <li key={s.code + i}>
-                          <button type="button" onClick={() => choose(s)}>
-                            <MapPin size={16} />
-                            <span>
-                              {s.label || s.code}
-                              <small>{s.code}</small>
-                            </span>
-                            <ChevronRight size={15} />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {searchResult && !searchResult.ok && (
-                    <Alert
-                      variant="destructive"
-                      role="alert"
-                      className="inline-error"
-                    >
-                      {searchResult.error?.message}
-                    </Alert>
-                  )}
-
-                  {searchResult?.ok && suggestions.length === 0 && (
-                    <p className="empty-search">
-                      No sandbox matches. Try the sample below.
-                    </p>
-                  )}
-
-                  <div className="sample-row">
-                    <span>Try a sandbox address</span>
-                    <button type="button" disabled={busy} onClick={sample}>
-                      {SAMPLE}
-                      <ArrowUpRight size={13} />
-                    </button>
-                  </div>
-
-                  <Button
-                    className="verify-button"
-                    disabled={!configured || !query.trim() || busy}
-                    onClick={verify}
-                  >
-                    {busy ? <Loader2 className="spin" /> : <ShieldCheck />}
-                    Verify postcode
-                    <ArrowRight className="button-arrow" />
-                  </Button>
-
-                  <div
-                    className={'result-box ' + (valid ? 'valid' : '')}
-                    aria-live="polite"
-                  >
-                    {result ? (
-                      <div className="result-stage">
-                        <span className="result-symbol">
-                          {valid ? (
-                            <CheckCheck size={25} />
-                          ) : result.ok ? (
-                            <Layers3 size={25} />
-                          ) : (
-                            <CircleHelp size={25} />
-                          )}
-                        </span>
-                        <h3>
-                          {result.data?.valid === true
-                            ? 'Postcode exists in the sandbox'
-                            : valid
-                              ? 'Canonical postcode verified (L1 sandbox)'
-                              : result.ok && result.operation === 'assemble'
-                                ? 'Postcode assembled'
-                                : result.ok
-                                  ? 'Invalid postcode rejected'
-                                  : 'Verification could not complete'}
-                        </h3>
-                        <p>
-                          {result.ok && result.operation === 'assemble'
-                            ? 'Structure assembled successfully. Run L1 verification to check existence.'
-                            : result.data?.valid === true
-                              ? 'L1 validation complete. Identity and proof of residence remain separate checks.'
-                              : valid
-                                ? 'NIPOST confirmed the 5-segment canonical format at L1. Identity and proof of residence remain separate checks.'
-                                : (result.error?.message ??
-                                  'NIPOST rejected this input as an invalid postcode format.')}
-                        </p>
-
-                        <div className="result-actions-row">
-                          <Collapsible
-                            open={responseOpen}
-                            onOpenChange={setResponseOpen}
-                          >
-                            <CollapsibleTrigger className="response-trigger">
-                              View API response <Code2 size={13} />
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="collapsible-body">
-                              <pre>{JSON.stringify(result, null, 2)}</pre>
-                            </CollapsibleContent>
-                          </Collapsible>
-
-                          {kycPayload && (
-                            <Collapsible
-                              open={kycOpen}
-                              onOpenChange={setKycOpen}
-                            >
-                              <div className="kyc-trigger-bar">
-                                <CollapsibleTrigger className="response-trigger">
-                                  Downstream KYC handoff payload{' '}
-                                  <ClipboardCheck size={13} />
-                                </CollapsibleTrigger>
-                                <button
-                                  type="button"
-                                  className="copy-kyc-btn"
-                                  onClick={copyKycHandoff}
-                                >
-                                  {copiedKyc ? (
-                                    <>
-                                      <Check size={12} /> Copied JSON
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Copy size={12} /> Copy KYC JSON
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                              <CollapsibleContent className="collapsible-body">
-                                <pre>{JSON.stringify(kycPayload, null, 2)}</pre>
-                              </CollapsibleContent>
-                            </Collapsible>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="result-stage">
-                        <span className="result-symbol">
-                          <Fingerprint size={28} />
-                        </span>
-                        <h3>Your verification result will appear here</h3>
-                        <p>
-                          We’ll show the actual NIPOST response after you verify.
-                        </p>
-                        <Badge variant="secondary" className="quiet-badge">
-                          AWAITING VERIFICATION
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-
-                  <Collapsible
-                    open={assemblyOpen}
-                    onOpenChange={setAssemblyOpen}
-                    className="assembly"
-                  >
-                    <CollapsibleTrigger className="assembly-trigger">
-                      <Layers3 size={17} />
-                      Have the individual segments or need the state catalog?
-                      <ChevronRight size={15} />
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="collapsible-body">
-                      <p>
-                        Assemble five segments into a canonical postcode,
-                        disassemble an existing code, or browse NIPOST’s live
-                        37-state reference catalog (<code>/v1/reference/*</code>).
-                      </p>
-
-                      <div className="catalog-toolbar">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={!configured || catalogBusy}
-                          onClick={loadReferenceStates}
-                        >
-                          {catalogBusy ? (
-                            <Loader2 size={14} className="spin" />
-                          ) : (
-                            <Database size={14} />
-                          )}
-                          {statesList.length > 0
-                            ? `Catalog loaded (${statesList.length} states)`
-                            : 'Load live NIPOST catalog'}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={!configured || busy}
-                          onClick={disassembleCurrent}
-                        >
-                          <SplitSquareVertical size={14} />
-                          Disassemble query
-                        </Button>
-                      </div>
-
-                      {statesList.length > 0 && (
-                        <div className="catalog-selects">
-                          <label className="catalog-select-label">
-                            <span>State (`/v1/reference/states`)</span>
-                            <select
-                              value={segments.state}
-                              disabled={catalogBusy}
-                              onChange={(e) => selectCatalogState(e.target.value)}
-                            >
-                              {statesList.map((st) => (
-                                <option key={st.code} value={st.code}>
-                                  {st.code} — {st.name || st.code}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-
-                          {lgasList.length > 0 && (
-                            <label className="catalog-select-label">
-                              <span>LGA (`/v1/reference/lgas`)</span>
-                              <select
-                                value={segments.lga}
-                                disabled={catalogBusy}
-                                onChange={(e) =>
-                                  selectCatalogLga(segments.state, e.target.value)
-                                }
-                              >
-                                {lgasList.map((lg) => (
-                                  <option key={lg.code} value={lg.code}>
-                                    {lg.code} — {lg.name || lg.code}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-
-                          {districtsList.length > 0 && (
-                            <label className="catalog-select-label">
-                              <span>District (`/v1/reference/districts`)</span>
-                              <select
-                                value={segments.district}
-                                disabled={catalogBusy}
-                                onChange={(e) =>
-                                  selectCatalogDistrict(
-                                    segments.state,
-                                    segments.lga,
-                                    e.target.value
-                                  )
-                                }
-                              >
-                                {districtsList.map((d) => (
-                                  <option key={d.code} value={d.code}>
-                                    {d.code}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-
-                          {areasList.length > 0 && (
-                            <label className="catalog-select-label">
-                              <span>Area (`/v1/reference/areas`)</span>
-                              <select
-                                value={segments.area}
-                                disabled={catalogBusy}
-                                onChange={(e) =>
-                                  setSegments((prev) => ({
-                                    ...prev,
-                                    area: e.target.value,
-                                  }))
-                                }
-                              >
-                                {areasList.map((ar) => (
-                                  <option key={ar.code} value={ar.code}>
-                                    {ar.code}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="segment-inputs">
-                        {Object.entries(segments).map(([k, v]) => (
-                          <Label key={k} className="segment-label">
-                            {k}
-                            <Input
-                              aria-label={k + ' segment'}
-                              value={v}
-                              maxLength={8}
-                              onChange={(e) =>
-                                setSegments({
-                                  ...segments,
-                                  [k]: e.target.value,
-                                })
+                    <div className="seg-meter" aria-hidden="true">
+                      <div className="seg-bars">
+                        {SEGMENT_LENGTHS.map((threshold, idx) => {
+                          const prev = idx === 0 ? 0 : SEGMENT_LENGTHS[idx - 1];
+                          const filled = cleanChars >= threshold;
+                          const active =
+                            cleanChars > prev && cleanChars < threshold;
+                          return (
+                            <span
+                              key={threshold}
+                              className={
+                                'seg-bar' +
+                                (idx === 2 ? ' wide' : '') +
+                                (filled ? ' filled' : active ? ' active' : '')
                               }
                             />
-                          </Label>
-                        ))}
+                          );
+                        })}
                       </div>
-                      <Button
-                        variant="outline"
-                        disabled={!configured || busy}
-                        onClick={assemble}
-                      >
-                        Assemble postcode
-                        <ArrowRight size={14} />
-                      </Button>
-                    </CollapsibleContent>
-                  </Collapsible>
-                </CardContent>
+                      <span className="seg-counter">{cleanChars} / 11</span>
+                    </div>
 
-                <CardFooter className="panel-bottom">
-                  <LockKeyhole size={13} />
-                  Test data only. No customer identity information collected.
-                </CardFooter>
-              </Card>
+                    <p className="field-help" id="search-help">
+                      Search by postcode segments, not a street name.
+                    </p>
+
+                    {suggestions.length > 0 && (
+                      <ul
+                        className="suggestions"
+                        aria-label="Postcode suggestions"
+                      >
+                        {suggestions.map((s, i) => (
+                          <li key={s.code + i}>
+                            <button type="button" onClick={() => choose(s)}>
+                              <MapPin size={16} />
+                              <span>
+                                {s.label || s.code}
+                                <small>{s.code}</small>
+                              </span>
+                              <ChevronRight size={15} />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {searchResult && !searchResult.ok && (
+                      <Alert
+                        variant="destructive"
+                        role="alert"
+                        className="inline-error"
+                      >
+                        {searchResult.error?.message}
+                      </Alert>
+                    )}
+
+                    {searchResult?.ok && suggestions.length === 0 && (
+                      <p className="empty-search">
+                        No sandbox matches. Try the sample below.
+                      </p>
+                    )}
+
+                    <div className="sample-row">
+                      <span>Try a sandbox address</span>
+                      <button type="button" disabled={busy} onClick={sample}>
+                        {SAMPLE}
+                        <ArrowUpRight size={13} />
+                      </button>
+                    </div>
+
+                    <Button
+                      className="verify-button"
+                      disabled={!configured || !query.trim() || busy}
+                      onClick={verify}
+                    >
+                      {busy ? <Loader2 className="spin" /> : <ShieldCheck />}
+                      Verify postcode
+                      <ArrowRight className="button-arrow" />
+                    </Button>
+
+                    <div
+                      className={'result-box ' + (valid ? 'valid' : '')}
+                      aria-live="polite"
+                    >
+                      {result ? (
+                        <div className="result-stage">
+                          <span className="result-symbol">
+                            {valid ? (
+                              <CheckCheck size={25} />
+                            ) : result.ok ? (
+                              <Layers3 size={25} />
+                            ) : (
+                              <CircleHelp size={25} />
+                            )}
+                          </span>
+
+                          <div className="verdict-badges">
+                            <Badge
+                              variant={
+                                valid ||
+                                (result.ok && result.operation === 'assemble')
+                                  ? 'success'
+                                  : 'destructive'
+                              }
+                            >
+                              {valid
+                                ? 'VERIFIED · LEVEL 1'
+                                : result.ok && result.operation === 'assemble'
+                                  ? 'ASSEMBLED · CANONICAL'
+                                  : 'NOT VERIFIED'}
+                            </Badge>
+                            <Badge variant="secondary">
+                              {result.durationMs} ms
+                            </Badge>
+                            {result.rateLimit?.remaining && (
+                              <Badge variant="outline">
+                                Rate limit: {result.rateLimit.remaining}/
+                                {result.rateLimit.limit ?? '—'}
+                              </Badge>
+                            )}
+                          </div>
+
+                          <h3>
+                            {result.data?.valid === true
+                              ? 'Postcode exists in the sandbox'
+                              : valid
+                                ? 'Canonical postcode verified (L1 sandbox)'
+                                : result.ok && result.operation === 'assemble'
+                                  ? 'Postcode assembled'
+                                  : result.ok
+                                    ? 'Invalid postcode rejected'
+                                    : 'Verification could not complete'}
+                          </h3>
+                          <p>
+                            {result.ok && result.operation === 'assemble'
+                              ? 'Structure assembled successfully. Run L1 verification to check existence.'
+                              : result.data?.valid === true
+                                ? 'L1 validation complete. Identity and proof of residence remain separate checks.'
+                                : valid
+                                  ? 'NIPOST confirmed the 5-segment canonical format at L1. Identity and proof of residence remain separate checks.'
+                                  : (result.error?.message ??
+                                    'NIPOST rejected this input as an invalid postcode format.')}
+                          </p>
+
+                          {/* FR-5: Decoded 5-segment pills inside verdict card */}
+                          {decodedCurrent && (
+                            <div
+                              className="verdict-decoded-segments"
+                              aria-label="Decoded postcode segments"
+                            >
+                              {(
+                                [
+                                  decodedCurrent.segments.state,
+                                  decodedCurrent.segments.lga,
+                                  decodedCurrent.segments.district,
+                                  decodedCurrent.segments.area,
+                                  decodedCurrent.segments.unit,
+                                ] as const
+                              ).map((segVal, idx) => (
+                                <span
+                                  key={SEGMENT_CAPTIONS[idx]}
+                                  className="verdict-seg-chip"
+                                >
+                                  <small>{SEGMENT_CAPTIONS[idx]}</small>
+                                  <strong>{segVal}</strong>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="result-actions-row">
+                            <Collapsible
+                              open={responseOpen}
+                              onOpenChange={setResponseOpen}
+                            >
+                              <CollapsibleTrigger className="response-trigger">
+                                View API response <Code2 size={13} />
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="collapsible-body">
+                                <pre>{JSON.stringify(result, null, 2)}</pre>
+                              </CollapsibleContent>
+                            </Collapsible>
+
+                            {kycPayload && (
+                              <Collapsible
+                                open={kycOpen}
+                                onOpenChange={setKycOpen}
+                              >
+                                <div className="kyc-trigger-bar">
+                                  <CollapsibleTrigger className="response-trigger">
+                                    Downstream KYC handoff payload{' '}
+                                    <ClipboardCheck size={13} />
+                                  </CollapsibleTrigger>
+                                  <button
+                                    type="button"
+                                    className="copy-kyc-btn"
+                                    onClick={copyKycHandoff}
+                                  >
+                                    {copiedKyc ? (
+                                      <>
+                                        <Check size={12} /> Copied JSON
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy size={12} /> Copy KYC JSON
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                                <CollapsibleContent className="collapsible-body">
+                                  <pre>
+                                    {JSON.stringify(kycPayload, null, 2)}
+                                  </pre>
+                                </CollapsibleContent>
+                              </Collapsible>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="result-stage">
+                          <span className="result-symbol">
+                            <Fingerprint size={28} />
+                          </span>
+                          <h3>Your verification result will appear here</h3>
+                          <p>
+                            We’ll show the actual NIPOST response after you
+                            verify.
+                          </p>
+                          <Badge variant="secondary" className="quiet-badge">
+                            AWAITING VERIFICATION
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    <Collapsible
+                      open={assemblyOpen}
+                      onOpenChange={setAssemblyOpen}
+                      className="assembly"
+                    >
+                      <CollapsibleTrigger className="assembly-trigger">
+                        <Layers3 size={17} />
+                        Have the individual segments or need the state catalog?
+                        <ChevronRight size={15} />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="collapsible-body">
+                        <p>
+                          Assemble five segments into a canonical postcode,
+                          disassemble an existing code, or browse NIPOST’s live
+                          37-state reference catalog (
+                          <code>/v1/reference/*</code>).
+                        </p>
+
+                        <div className="catalog-toolbar">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!configured || catalogBusy}
+                            onClick={loadReferenceStates}
+                          >
+                            {catalogBusy ? (
+                              <Loader2 size={14} className="spin" />
+                            ) : (
+                              <Database size={14} />
+                            )}
+                            {statesList.length > 0
+                              ? `Catalog loaded (${statesList.length} states)`
+                              : 'Load live NIPOST catalog'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={!configured || busy}
+                            onClick={disassembleCurrent}
+                          >
+                            <SplitSquareVertical size={14} />
+                            Disassemble query
+                          </Button>
+                        </div>
+
+                        {statesList.length > 0 && (
+                          <div className="catalog-selects">
+                            <label className="catalog-select-label">
+                              <span>State (`/v1/reference/states`)</span>
+                              <select
+                                value={segments.state}
+                                disabled={catalogBusy}
+                                onChange={(e) =>
+                                  selectCatalogState(e.target.value)
+                                }
+                              >
+                                {statesList.map((st) => (
+                                  <option key={st.code} value={st.code}>
+                                    {st.code} — {st.name || st.code}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+
+                            {lgasList.length > 0 && (
+                              <label className="catalog-select-label">
+                                <span>LGA (`/v1/reference/lgas`)</span>
+                                <select
+                                  value={segments.lga}
+                                  disabled={catalogBusy}
+                                  onChange={(e) =>
+                                    selectCatalogLga(
+                                      segments.state,
+                                      e.target.value
+                                    )
+                                  }
+                                >
+                                  {lgasList.map((lg) => (
+                                    <option key={lg.code} value={lg.code}>
+                                      {lg.code} — {lg.name || lg.code}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            )}
+
+                            {districtsList.length > 0 && (
+                              <label className="catalog-select-label">
+                                <span>
+                                  District (`/v1/reference/districts`)
+                                </span>
+                                <select
+                                  value={segments.district}
+                                  disabled={catalogBusy}
+                                  onChange={(e) =>
+                                    selectCatalogDistrict(
+                                      segments.state,
+                                      segments.lga,
+                                      e.target.value
+                                    )
+                                  }
+                                >
+                                  {districtsList.map((d) => (
+                                    <option key={d.code} value={d.code}>
+                                      {d.code}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            )}
+
+                            {areasList.length > 0 && (
+                              <label className="catalog-select-label">
+                                <span>Area (`/v1/reference/areas`)</span>
+                                <select
+                                  value={segments.area}
+                                  disabled={catalogBusy}
+                                  onChange={(e) =>
+                                    setSegments((prev) => ({
+                                      ...prev,
+                                      area: e.target.value,
+                                    }))
+                                  }
+                                >
+                                  {areasList.map((ar) => (
+                                    <option key={ar.code} value={ar.code}>
+                                      {ar.code}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="segment-inputs">
+                          {Object.entries(segments).map(([k, v]) => (
+                            <Label key={k} className="segment-label">
+                              {k}
+                              <Input
+                                aria-label={k + ' segment'}
+                                value={v}
+                                maxLength={8}
+                                autoCorrect="off"
+                                spellCheck={false}
+                                onChange={(e) =>
+                                  setSegments({
+                                    ...segments,
+                                    [k]: e.target.value,
+                                  })
+                                }
+                              />
+                            </Label>
+                          ))}
+                        </div>
+                        <Button
+                          variant="outline"
+                          disabled={!configured || busy}
+                          onClick={assemble}
+                        >
+                          Assemble postcode
+                          <ArrowRight size={14} />
+                        </Button>
+                      </CollapsibleContent>
+                    </Collapsible>
+                  </CardContent>
+
+                  <CardFooter className="panel-bottom">
+                    <LockKeyhole size={13} />
+                    Test data only. No customer identity information collected.
+                  </CardFooter>
+                </Card>
+
+                {/* FR-9: Continue Onboarding — Mock Account-Opening Flow */}
+                <Card className="panel onboarding-card">
+                  <CardHeader className="panel-heading">
+                    <span className="panel-icon">
+                      <UserCheck size={20} />
+                    </span>
+                    <div>
+                      <CardTitle>
+                        Step 3 · Continue onboarding (Mock KYC handoff)
+                      </CardTitle>
+                      <CardDescription>
+                        Wrap Capture → Validate → Handoff into a single
+                        applicant account-opening step using fake demo fields.
+                      </CardDescription>
+                    </div>
+                    <CardAction>
+                      <Badge variant={valid ? 'gold' : 'secondary'}>
+                        {onboardingSubmitted
+                          ? 'HANDOFF COMPLETE'
+                          : valid
+                            ? 'READY FOR HANDOFF'
+                            : 'VERIFY POSTCODE FIRST'}
+                      </Badge>
+                    </CardAction>
+                  </CardHeader>
+
+                  <CardContent className="panel-body">
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (result) setOnboardingSubmitted(true);
+                      }}
+                    >
+                      <fieldset className="onboarding-fieldset">
+                        <legend className="sr-only">
+                          Mock applicant onboarding details (test data only)
+                        </legend>
+
+                        <div className="onboarding-grid">
+                          <div className="onboarding-field">
+                            <Label htmlFor="demo-applicant-name">
+                              Applicant full name (Demo)
+                            </Label>
+                            <Input
+                              id="demo-applicant-name"
+                              name="applicant-name"
+                              value={demoName}
+                              onChange={(e) => setDemoName(e.target.value)}
+                              autoComplete="name"
+                              required
+                            />
+                          </div>
+
+                          <div className="onboarding-field">
+                            <Label htmlFor="demo-applicant-phone">
+                              Phone number (Demo)
+                            </Label>
+                            <Input
+                              id="demo-applicant-phone"
+                              name="applicant-phone"
+                              type="tel"
+                              inputMode="tel"
+                              autoComplete="tel"
+                              value={demoPhone}
+                              onChange={(e) => setDemoPhone(e.target.value)}
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="onboarding-tier-group">
+                          <span className="onboarding-tier-label">
+                            Target onboarding product tier
+                          </span>
+                          <div
+                            className="onboarding-radios"
+                            role="radiogroup"
+                            aria-label="Target onboarding product tier"
+                          >
+                            {[
+                              'Tier 1 Wallet',
+                              'Tier 2 Savings (KYC)',
+                              'Merchant POS',
+                            ].map((tierOption) => (
+                              <label
+                                key={tierOption}
+                                className={
+                                  'onboarding-radio-pill' +
+                                  (demoTier === tierOption ? ' active' : '')
+                                }
+                              >
+                                <input
+                                  type="radio"
+                                  name="account-tier"
+                                  value={tierOption}
+                                  checked={demoTier === tierOption}
+                                  onChange={() => setDemoTier(tierOption)}
+                                />
+                                <span>{tierOption}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="onboarding-actions">
+                          <Button
+                            type="submit"
+                            disabled={!result}
+                            className="onboarding-submit-btn"
+                          >
+                            <ClipboardCheck size={16} />
+                            Complete onboarding &amp; generate KYC JSON
+                          </Button>
+                          {kycPayload && (
+                            <>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={copyKycHandoff}
+                              >
+                                {copiedKyc ? (
+                                  <>
+                                    <Check size={14} /> Copied KYC JSON
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={14} /> Copy KYC JSON
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={downloadKycHandoff}
+                              >
+                                <Download size={14} />
+                                Export .json
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </fieldset>
+                    </form>
+
+                    {onboardingSubmitted && kycPayload && (
+                      <div
+                        className="bank-compliance-view"
+                        aria-live="polite"
+                      >
+                        <div className="bank-compliance-head">
+                          <div>
+                            <span className="eyebrow">
+                              DOWNSTREAM BANK / FINTECH COMPLIANCE VIEW
+                            </span>
+                            <h4>
+                              Structured KYC Payload ·{' '}
+                              <code>{kycPayload.postcode}</code>
+                            </h4>
+                          </div>
+                          <Badge
+                            variant={
+                              kycPayload.verdict === 'verified'
+                                ? 'success'
+                                : 'destructive'
+                            }
+                          >
+                            verdict: {kycPayload.verdict}
+                          </Badge>
+                        </div>
+                        <pre>{JSON.stringify(kycPayload, null, 2)}</pre>
+                      </div>
+                    )}
+                  </CardContent>
+
+                  <CardFooter className="panel-bottom">
+                    <CircleHelp size={13} />
+                    Honesty rule: a valid postcode confirms a location
+                    reference; it does not prove who lives there.
+                  </CardFooter>
+                </Card>
+
+                {/* FR-10: Session Verification Log */}
+                <Card className="panel log-panel">
+                  <CardHeader className="panel-heading">
+                    <span className="panel-icon">
+                      <History size={20} />
+                    </span>
+                    <div>
+                      <CardTitle>Session verification log</CardTitle>
+                      <CardDescription>
+                        Every postcode check in this session is recorded with
+                        timestamp, decoded segments, verdict, and level.
+                      </CardDescription>
+                    </div>
+                    <CardAction>
+                      {verificationLog.length > 0 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          onClick={clearVerificationLog}
+                        >
+                          <Trash2 size={13} />
+                          Clear log
+                        </Button>
+                      )}
+                    </CardAction>
+                  </CardHeader>
+
+                  <CardContent className="panel-body">
+                    {verificationLog.length === 0 ? (
+                      <p className="empty-log-note">
+                        No checks recorded yet in this session. Verify a
+                        postcode above to populate the audit trail.
+                      </p>
+                    ) : (
+                      <div className="mkt-table-scroll log-table-wrap">
+                        <table className="mkt-table">
+                          <thead>
+                            <tr>
+                              <th>Time</th>
+                              <th>Postcode</th>
+                              <th>Decoded Segments</th>
+                              <th>Verdict</th>
+                              <th>Level</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {verificationLog.map((entry) => (
+                              <tr key={entry.id}>
+                                <td>
+                                  <span className="log-time">
+                                    <Clock size={12} />
+                                    {new Date(
+                                      entry.checked_at
+                                    ).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      second: '2-digit',
+                                    })}
+                                  </span>
+                                </td>
+                                <td>
+                                  <code>{entry.postcode}</code>
+                                </td>
+                                <td>
+                                  {entry.segments ? (
+                                    <span className="log-segments-inline">
+                                      {entry.segments.state} ·{' '}
+                                      {entry.segments.lga} ·{' '}
+                                      {entry.segments.district} ·{' '}
+                                      {entry.segments.area} ·{' '}
+                                      {entry.segments.unit}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted">—</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <Badge
+                                    variant={
+                                      entry.verdict === 'verified'
+                                        ? 'success'
+                                        : 'destructive'
+                                    }
+                                  >
+                                    {entry.verdict}
+                                  </Badge>
+                                </td>
+                                <td>
+                                  <code>L{entry.level}</code>
+                                </td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="log-copy-btn"
+                                    onClick={() => copyLogEntry(entry)}
+                                  >
+                                    {copiedLogId === entry.id ? (
+                                      <>
+                                        <Check size={12} /> Copied
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy size={12} /> JSON
+                                      </>
+                                    )}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
 
               <aside className="right-column">
                 <Card className="explainer">
@@ -1158,27 +1685,39 @@ export function PostcodeWorkspace() {
                   <h3>A focused verification flow</h3>
                   <ol>
                     <li>
-                      <span>1</span>
+                      <span className={query.trim() ? 'step-done' : ''}>1</span>
                       <div>
                         <strong>Capture</strong>
-                        <p>Find and select a postcode or browse the catalog.</p>
+                        <p>
+                          Find and select a postcode via autocomplete, catalog,
+                          or sample.
+                        </p>
                       </div>
                     </li>
                     <li>
                       <span className={valid ? 'step-done' : ''}>2</span>
                       <div>
                         <strong>Validate</strong>
-                        <p>Check existence and format with an L1 lookup.</p>
+                        <p>
+                          Check existence and format with an L1 lookup; inspect
+                          raw API proof.
+                        </p>
                       </div>
                     </li>
                     <li>
-                      <span className={valid ? 'step-done' : ''}>3</span>
+                      <span
+                        className={
+                          onboardingSubmitted || copiedKyc ? 'step-done' : ''
+                        }
+                      >
+                        3
+                      </span>
                       <div>
                         <strong>Continue onboarding</strong>
                         <p>
-                          {valid
-                            ? 'KYC handoff payload ready to copy or send downstream.'
-                            : 'Carry the validated code into your KYC process.'}
+                          {onboardingSubmitted || copiedKyc
+                            ? 'KYC handoff JSON emitted and logged in session trail.'
+                            : 'Produce the KYC handoff payload and record in verification log.'}
                         </p>
                       </div>
                     </li>
@@ -1236,6 +1775,7 @@ export function PostcodeWorkspace() {
 
                 <textarea
                   id="batch-codes"
+                  name="batch-codes"
                   className="batch-textarea"
                   rows={4}
                   value={batchInput}
@@ -1453,7 +1993,8 @@ export function PostcodeWorkspace() {
 
           <footer>
             <span>
-              PostCheck by <strong>Viral Ad Media</strong> (Abuja, FCT, Nigeria)
+              PostCheck by <strong>Viral Ad Media — Lagos Team</strong> (Owner:
+              Luqman Adeyemo · Lead: Azeez Ademola)
             </span>
             <nav
               aria-label="Workspace footer links"

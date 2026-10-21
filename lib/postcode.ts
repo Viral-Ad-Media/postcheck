@@ -9,6 +9,11 @@ export type Operation =
   | 'areas'
   | 'bad-postcode';
 
+export type RateLimitInfo = {
+  limit: string | null;
+  remaining: string | null;
+};
+
 export type Result = {
   operation: Operation;
   ok: boolean;
@@ -18,6 +23,7 @@ export type Result = {
   at: string;
   data?: Record<string, unknown>;
   error?: { code: string; message: string };
+  rateLimit?: RateLimitInfo;
   source: 'nipost' | 'application';
 };
 
@@ -32,6 +38,21 @@ export type FormattedPostcode = {
     area: string;
     unit: string;
   };
+};
+
+export type KycVerdict = 'verified' | 'not_verified' | 'error';
+
+export type VerificationLogEntry = {
+  id: string;
+  checked_at: string;
+  postcode: string;
+  segments: FormattedPostcode['segments'] | null;
+  verdict: KycVerdict;
+  level: 1;
+  durationMs: number;
+  upstreamStatus: number | null;
+  source: string;
+  api_response: Record<string, unknown> | null;
 };
 
 export const SAMPLE = 'FC-01-A01-KP-27';
@@ -82,40 +103,65 @@ export function nextQuery(query: string, segment: string, suggestion: string) {
   return code.length === lengths[index] ? prefix + code : code;
 }
 
-export function buildKycHandoffPayload(result: Result, fallbackCode: string) {
+export function getKycVerdict(result: Result): KycVerdict {
+  if (!result.ok) {
+    if ([400, 404, 422].includes(result.upstreamStatus ?? 0)) {
+      return 'not_verified';
+    }
+    return 'error';
+  }
+  if (
+    result.data?.valid === true ||
+    result.data?.status === 'not_found' ||
+    (result.operation === 'assemble' && typeof result.data?.postcode === 'string')
+  ) {
+    return 'verified';
+  }
+  return 'not_verified';
+}
+
+export function buildKycHandoffPayload(
+  result: Result,
+  fallbackCode: string,
+  applicantDemo?: {
+    fullName: string;
+    phone: string;
+    accountTier: string;
+  }
+) {
   const rawCode =
     typeof result.data?.postcode === 'string'
       ? result.data.postcode
       : fallbackCode;
   const formatted = formatPostcode(rawCode);
+  const verdict = getKycVerdict(result);
+
   return {
-    schema: 'postcheck.kyc.handoff.v1',
-    generatedAt: result.at,
-    postcode: {
-      dashed: formatted?.dashed ?? rawCode,
-      display: formatted?.display ?? rawCode,
-      compact: formatted?.canonical ?? canonical(rawCode),
-      segments: formatted?.segments ?? null,
+    postcode: formatted?.dashed ?? rawCode,
+    display: formatted?.display ?? rawCode,
+    compact: formatted?.canonical ?? canonical(rawCode),
+    segments: formatted?.segments ?? null,
+    verdict,
+    level: 1 as const,
+    checked_at: result.at,
+    source: 'NIPOST Postcode API — test environment',
+    duration_ms: result.durationMs,
+    ...(applicantDemo
+      ? {
+          applicant_demo: {
+            full_name: applicantDemo.fullName,
+            phone: applicantDemo.phone,
+            account_tier: applicantDemo.accountTier,
+            test_data_only: true,
+          },
+        }
+      : {}),
+    ndpa_scope: {
+      pii_stored_server_side: false,
+      credits_consumed: 0,
+      honesty_rule:
+        'A valid postcode confirms a location reference; it does not prove who lives there. Identity and proof of residence remain separate checks.',
     },
-    verification: {
-      provider: 'NIPOST Postcode Gateway',
-      endpoint: '/v1/lookup?level=1',
-      level: 1,
-      valid: Boolean(result.data?.valid),
-      status: String(
-        result.data?.status ?? (result.data?.valid ? 'verified' : 'unverified')
-      ),
-      canonicalFormatVerified:
-        result.data?.valid === true || result.data?.status === 'not_found',
-      durationMs: result.durationMs,
-      upstreamStatus: result.upstreamStatus,
-    },
-    ndpaGovernance: {
-      piiCollected: false,
-      creditsConsumed: 0,
-      provesPersonalIdentity: false,
-      provesPhysicalOccupancy: false,
-      requiredDownstreamChecks: ['BVN_OR_NIN_IDENTITY', 'PROOF_OF_RESIDENCE'],
-    },
+    api_response: result.data ?? result.error ?? null,
   };
 }

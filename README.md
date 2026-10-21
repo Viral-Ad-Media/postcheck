@@ -1,8 +1,8 @@
-# PostCheck by Viral Ad Media
+# PostCheck
 
-A standalone Next.js application for NIPOST's **Built on Nigeria's Postcode — Session 2 (Identity, Banking & Payments)**.
+**Built on Nigeria's Postcode** — An interactive NIPOST Postcode API integration & address-verification platform built with Next.js 16 (App Router), React 19, and TypeScript.
 
-PostCheck provides a structured, postcode-first address verification step for Nigerian customer onboarding: segment-aware autocomplete, Level 1 (L1) validity lookup, 5-part postcode assembly (`AA-99-H77-BB-55`), and a 4-check live staging acceptance suite with exportable JSON evidence. **A valid postcode confirms a structured location reference only; identity verification (BVN/NIN) and proof of residence remain separate downstream KYC checks.**
+PostCheck brings Nigeria's national digital postcode (NIPOST) into customer onboarding: segment-aware autocomplete (`FR-1`), 1-click sample affordance (`FR-2`), live 37-state reference catalog (`FR-3`), 5-segment assembly & disassembly (`FR-4`), Level 1 (L1) validity lookup with decoded segment chips (`FR-5`), raw API proof viewer (`FR-6`), distinct error/rate-limit states (`FR-7`), 1-click KYC JSON handoff (`FR-8`), mock account-opening onboarding flow (`FR-9`), persistent session verification log (`FR-10`), batch backbook audit (`FR-11`), and the 4-check live staging acceptance suite (`FR-12`). **Honesty rule: a valid postcode confirms a structured location reference; it does not prove who lives there. Identity verification (BVN/NIN) and proof of residence remain separate checks.**
 
 ---
 
@@ -132,26 +132,32 @@ npm start
 - `lib/postcode.ts` — Shared segment constants (`FC-01-A01-KP-27`) and segment-aware query helpers
 - `lib/seo.ts` — Canonical metadata builder and JSON-LD schema generators
 - `scripts/check-staging.mjs` — CLI runner for the 4-check live NIPOST staging suite
-- `tests/nipost.test.mjs` — Node test runner suite (`9` tests)
+- `tests/nipost.test.mjs` — Node test runner suite (`12` tests)
 - `docs/DEMO.md` — Demo walkthrough and 90-second showcase script
 
 ---
 
-## Next Phase (Phase 2 Roadmap & Showcase Milestones)
+## PRD Milestones & Roadmap (Phase 1 → Phase 3)
 
-### Immediate Session 2 Milestones
+### Session 2 Milestone Schedule
 
-1. **Hosted Sandbox Deployment**: Deploy the application to a production Node host (e.g., Vercel) with `NIPOST_API_KEY` (`nipost_test_*`) configured exclusively as a server-side secret environment variable.
-2. **90-Second Demo Walkthrough Video**: Record the live capture, 5-segment assembly, negative rejection test, and `4 / 4` staging evidence export (`postcheck-staging-evidence.json`) following [`docs/DEMO.md`](docs/DEMO.md).
-3. **Session 2 Submission**: Submit the deployed URL, exported JSON evidence, and walkthrough video ahead of the **Session 2 (Identity, Banking & Payments)** shortlisting deadline on **Tuesday, 3 November 2026** (Showcase: **Friday, 6 November 2026**).
+| Date | Milestone | Status |
+| --- | --- | --- |
+| **Mon 19 Oct 2026** | Test key connected; first L1 verification passing; API proof captured | **Done** |
+| **Fri 23 Oct 2026** | Full flow end-to-end including Continue onboarding (`FR-9`) and verification log (`FR-10`) | **Built** |
+| **Tue 27 Oct 2026** | Public demo URL stable; demo postcodes verified on staging | Pending deploy |
+| **Fri 30 Oct 2026** | Demo video recorded (2–3 min: problem → flow → bank view → close) | Pending |
+| **Mon 2 Nov 2026** | Session 2 application submitted (shortlist closes Tue 3 Nov) | Target |
+| **Fri 6 Nov 2026** | Session 2 live showcase (5-min demo + 5-min Q&A) | Target |
 
-### Phase 2 Product Roadmap (Post-Showcase Pilot)
+### Phase 2 (Post-KYB) & Phase 3 (Commercial) Roadmap
 
-- **Embeddable KYC Onboarding Step & Signed Webhook Handoff**: Package the postcode capture and L1 verification flow as a drop-in component and server webhook that binds a normalized `AA-99-H77-BB-55` reference to a bank or fintech's downstream identity (BVN/NIN) and proof-of-address workflow.
-- **Opt-In Graded Lookup Escalation (L2 & L3)**: Support policy-driven escalation from free `L1` validity checks to `L2` (State, LGA, Locality, and recent house address string) and `L3` (Residential / Commercial / Public building use status) for Tier-3 account upgrades and merchant KYB, gated by explicit NDPA consent.
-- **Guided Reference Catalog Selector (`/v1/reference/*`)**: Add cascading State → LGA → Postal District → Area drill-down backed by NIPOST's precomputed reference endpoints so field agents can resolve postcodes even when a customer does not yet know their code.
-- **Batch Backbook Normalization (`/v1/lookup/batch`)**: Provide a server-side batch validation pipeline for financial institutions, logistics fleets, and utilities to audit and migrate legacy free-text address books to verified 5-segment postcodes.
-- **Production Governance & Observability**: Add per-tenant rate limiting, structured audit logs (with zero PII retention), and `nipost_live_*` key rotation after NIPOST KYB approval.
+- **Phase 2 — Post-KYB Approval**:
+  - Live API keys (`nipost_live_*`), commercial `L2` lookups (administrative hierarchy + recent house address string) and `L3` lookups (building use status: Residential / Commercial / Public) where customer use cases justify credit consumption.
+  - Publishable key (`nipost_pk_*`) + official NIPOST widget embed for customer-facing checkout/onboarding pages with strict origin allowlisting.
+  - Pilot integrations with design-partner Nigerian fintechs and microfinance banks.
+- **Phase 3 — Commercial Scale**:
+  - Per-verification billing, usage dashboard, signed webhooks, and high-throughput batch API for enterprise back-book audits.
 
 ---
 
