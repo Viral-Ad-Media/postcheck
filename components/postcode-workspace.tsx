@@ -72,6 +72,7 @@ import {
   estimateCreditUsage,
   evaluateOriginAllowlist,
   formatPostcode,
+  getAdministrativeNames,
   getKycVerdict,
   nextQuery,
   type LookupTierLevel,
@@ -651,6 +652,10 @@ export function PostcodeWorkspace() {
           : query || SAMPLE
       )
     : formatPostcode(query);
+
+  const adminNames = decodedCurrent
+    ? getAdministrativeNames(decodedCurrent.segments, result?.data)
+    : null;
 
   const kycPayload = result
     ? buildKycHandoffPayload(
@@ -1412,9 +1417,9 @@ curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(que
                             {result.ok && result.operation === 'assemble'
                               ? 'Structure assembled successfully. Run L1 verification to check existence.'
                               : result.data?.valid === true
-                                ? 'L1 validation complete. Identity and proof of residence remain separate checks.'
+                                ? `NIPOST Level 1 verified. Matched State: ${adminNames?.stateName ?? decodedCurrent?.segments.state} (${decodedCurrent?.segments.state}) · LGA: ${adminNames?.lgaName ?? decodedCurrent?.segments.lga} · District: ${adminNames?.districtName ?? decodedCurrent?.segments.district}. Identity and proof of residence remain separate checks.`
                                 : valid
-                                  ? 'NIPOST confirmed the 5-segment canonical format at L1 (status: not_found in unseeded sandbox). Identity and proof of residence remain separate checks.'
+                                  ? `NIPOST Level 1 verified. Matched State: ${adminNames?.stateName ?? decodedCurrent?.segments.state} (${decodedCurrent?.segments.state}) · LGA: ${adminNames?.lgaName ?? decodedCurrent?.segments.lga} · District: ${adminNames?.districtName ?? decodedCurrent?.segments.district} (status: not_found in unseeded sandbox). Identity and proof of residence remain separate checks.`
                                   : isRateLimited
                                     ? (result.error?.message ??
                                       'Rate limit exceeded on NIPOST gateway. Observe X-RateLimit-Remaining and retry shortly.')
@@ -1422,29 +1427,57 @@ curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(que
                                       'NIPOST rejected this input as an invalid postcode format (expected 5 segments: AA-99-H77-BB-55).')}
                           </p>
 
-                          {/* FR-5: Decoded 5-segment pills inside verdict card */}
+                          {/* FR-5: Decoded 5-segment pills inside verdict card with API terms */}
                           {decodedCurrent && (
                             <div
                               className="verdict-decoded-segments"
                               aria-label="Decoded postcode segments"
                             >
-                              {(
-                                [
-                                  decodedCurrent.segments.state,
-                                  decodedCurrent.segments.lga,
-                                  decodedCurrent.segments.district,
-                                  decodedCurrent.segments.area,
-                                  decodedCurrent.segments.unit,
-                                ] as const
-                              ).map((segVal, idx) => (
-                                <span
-                                  key={SEGMENT_CAPTIONS[idx]}
-                                  className="verdict-seg-chip"
-                                >
-                                  <small>{SEGMENT_CAPTIONS[idx]}</small>
-                                  <strong>{segVal}</strong>
-                                </span>
-                              ))}
+                              <span className="verdict-seg-chip">
+                                <small>State</small>
+                                <strong>{decodedCurrent.segments.state}</strong>
+                                {adminNames?.stateName && (
+                                  <span className="verdict-seg-sub">
+                                    {adminNames.stateName}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="verdict-seg-chip">
+                                <small>LGA</small>
+                                <strong>{decodedCurrent.segments.lga}</strong>
+                                {adminNames?.lgaName && (
+                                  <span className="verdict-seg-sub">
+                                    {adminNames.lgaName}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="verdict-seg-chip">
+                                <small>District</small>
+                                <strong>{decodedCurrent.segments.district}</strong>
+                                {adminNames?.districtName && (
+                                  <span className="verdict-seg-sub">
+                                    {adminNames.districtName}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="verdict-seg-chip">
+                                <small>Area</small>
+                                <strong>{decodedCurrent.segments.area}</strong>
+                                {adminNames?.areaName && (
+                                  <span className="verdict-seg-sub">
+                                    {adminNames.areaName}
+                                  </span>
+                                )}
+                              </span>
+                              <span className="verdict-seg-chip">
+                                <small>Unit</small>
+                                <strong>{decodedCurrent.segments.unit}</strong>
+                                {adminNames?.unitName && (
+                                  <span className="verdict-seg-sub">
+                                    {adminNames.unitName}
+                                  </span>
+                                )}
+                              </span>
                             </div>
                           )}
 

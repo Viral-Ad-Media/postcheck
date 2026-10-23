@@ -9,6 +9,7 @@ import {
 } from './postcode.ts';
 export {
   DEFAULT_ALLOWED_ORIGINS,
+  NIPOST_STATE_NAMES,
   SAMPLE,
   SAMPLE_BATCH,
   SEGMENTS,
@@ -21,6 +22,7 @@ export {
   estimateCreditUsage,
   evaluateOriginAllowlist,
   formatPostcode,
+  getAdministrativeNames,
   getKycVerdict,
   nextQuery,
 } from './postcode.ts';

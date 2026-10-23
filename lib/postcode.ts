@@ -144,6 +144,103 @@ export function nextQuery(query: string, segment: string, suggestion: string) {
   return code.length === lengths[index] ? prefix + code : code;
 }
 
+export const NIPOST_STATE_NAMES: Record<string, string> = {
+  AB: 'Abia',
+  AD: 'Adamawa',
+  AK: 'Akwa Ibom',
+  AN: 'Anambra',
+  BA: 'Bauchi',
+  BY: 'Bayelsa',
+  BN: 'Benue',
+  BO: 'Borno',
+  CR: 'Cross River',
+  DE: 'Delta',
+  EB: 'Ebonyi',
+  ED: 'Edo',
+  EK: 'Ekiti',
+  EN: 'Enugu',
+  FC: 'Federal Capital Territory',
+  GO: 'Gombe',
+  IM: 'Imo',
+  JI: 'Jigawa',
+  KD: 'Kaduna',
+  KN: 'Kano',
+  KT: 'Katsina',
+  KE: 'Kebbi',
+  KO: 'Kogi',
+  KW: 'Kwara',
+  LA: 'Lagos',
+  NA: 'Nasarawa',
+  NI: 'Niger',
+  OG: 'Ogun',
+  ON: 'Ondo',
+  OS: 'Osun',
+  OY: 'Oyo',
+  PL: 'Plateau',
+  RI: 'Rivers',
+  SO: 'Sokoto',
+  TA: 'Taraba',
+  YO: 'Yobe',
+  ZA: 'Zamfara',
+};
+
+export function getAdministrativeNames(
+  segments: FormattedPostcode['segments'] | null | undefined,
+  apiData?: Record<string, unknown> | null
+) {
+  if (!segments) return null;
+  const stateName =
+    (typeof apiData?.state_name === 'string' && apiData.state_name) ||
+    (typeof apiData?.state === 'string' &&
+      apiData.state.length > 2 &&
+      apiData.state) ||
+    NIPOST_STATE_NAMES[segments.state] ||
+    `State ${segments.state}`;
+
+  const lgaName =
+    (typeof apiData?.lga_name === 'string' && apiData.lga_name) ||
+    (segments.state === 'FC' && segments.lga === '01'
+      ? 'Abuja Municipal Area Council (AMAC)'
+      : segments.state === 'EK' && segments.lga === '01'
+        ? 'Ado-Ekiti'
+        : segments.state === 'LA' && segments.lga === '01'
+          ? 'Ikeja / Agege'
+          : `LGA ${segments.lga}`);
+
+  const districtName =
+    (typeof apiData?.district_name === 'string' && apiData.district_name) ||
+    (segments.state === 'FC' && segments.district === 'A01'
+      ? 'Garki'
+      : `District ${segments.district}`);
+
+  const areaName =
+    (typeof apiData?.area_name === 'string' && apiData.area_name) ||
+    `Area ${segments.area}`;
+
+  const unitName =
+    (typeof apiData?.unit_name === 'string' && apiData.unit_name) ||
+    `Building Unit ${segments.unit}`;
+
+  return {
+    stateCode: segments.state,
+    stateName,
+    lgaCode: segments.lga,
+    lgaName,
+    districtCode: segments.district,
+    districtName,
+    areaCode: segments.area,
+    areaName,
+    unitCode: segments.unit,
+    unitName,
+    state: `${segments.state} (${stateName})`,
+    lga: `${segments.lga} (${lgaName})`,
+    district: `${segments.district} (${districtName})`,
+    area: areaName,
+    unit: unitName,
+    summary: `${stateName} · ${lgaName} · ${districtName}`,
+  };
+}
+
 export function getKycVerdict(result: Result): KycVerdict {
   if (!result.ok) {
     if ([400, 404, 422].includes(result.upstreamStatus ?? 0)) {
@@ -177,12 +274,22 @@ export function buildKycHandoffPayload(
       : fallbackCode;
   const formatted = formatPostcode(rawCode);
   const verdict = getKycVerdict(result);
+  const adminNames = getAdministrativeNames(formatted?.segments, result.data);
 
   return {
     postcode: formatted?.dashed ?? rawCode,
     display: formatted?.display ?? rawCode,
     compact: formatted?.canonical ?? canonical(rawCode),
     segments: formatted?.segments ?? null,
+    matched_boundaries: adminNames
+      ? {
+          state: adminNames.state,
+          lga: adminNames.lga,
+          district: adminNames.district,
+          area: adminNames.area,
+          unit: adminNames.unit,
+        }
+      : null,
     verdict,
     level: 1 as const,
     checked_at: result.at,

@@ -3536,6 +3536,15 @@ footer strong {
   color: var(--ink);
 }
 
+.verdict-seg-sub {
+  font-size: 10px;
+  color: var(--muted);
+  max-width: 140px;
+  text-align: center;
+  line-height: 1.25;
+  margin-top: 1px;
+}
+
 .onboarding-fieldset {
   border: 0;
   padding: 0;
