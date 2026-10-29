@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import { MarketingShell } from '@/components/marketing-shell';
-import { PilotDemo } from '@/components/pilot-demo';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -45,7 +45,7 @@ export default function PilotPage() {
     <MarketingShell
       currentPath="/pilot"
       breadcrumbs={[
-        { name: 'Live Sandbox', path: '/' },
+        { name: 'Home', path: '/' },
         { name: 'Fintech & Bank Pilot', path: '/pilot' },
       ]}
     >
@@ -98,7 +98,7 @@ export default function PilotPage() {
             </p>
           </div>
 
-          <PilotDemo />
+          <div className="pc-pilot-gate"><h2>Try the interactive pilot</h2><p>Sign in to run the postcode widget in your protected workspace. This public page explains the pilot; live API calls require an account.</p><Button asChild><Link href="/dashboard/pilot">Open pilot workspace →</Link></Button></div>
         </div>
       </section>
 
@@ -204,7 +204,7 @@ export default function PilotPage() {
           </p>
           <div className="mkt-cta-row mkt-cta-center">
             <Button asChild size="lg" className="mkt-btn-gold">
-              <Link href="/">
+              <Link href="/dashboard">
                 Open verification workspace
                 <ArrowRight size={16} className="button-arrow" />
               </Link>

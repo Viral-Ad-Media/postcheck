@@ -48,7 +48,7 @@ export default function PrivacyPage() {
     <MarketingShell
       currentPath="/privacy"
       breadcrumbs={[
-        { name: 'Live Sandbox', path: '/' },
+        { name: 'Home', path: '/' },
         { name: 'Privacy & NDPA', path: '/privacy' },
       ]}
     >
@@ -85,7 +85,7 @@ export default function PrivacyPage() {
               API v1 verification proxy
             </Link>{' '}
             and{' '}
-            <Link href="/" className="mkt-inline-gold-link">
+            <Link href="/dashboard" className="mkt-inline-gold-link">
               interactive sandbox
             </Link>
             .
@@ -241,7 +241,7 @@ export default function PrivacyPage() {
           </p>
           <div className="mkt-cta-row mkt-cta-center">
             <Button asChild size="lg" className="mkt-btn-gold">
-              <Link href="/">
+              <Link href="/dashboard">
                 Open live sandbox
                 <ArrowRight size={16} className="button-arrow" />
               </Link>

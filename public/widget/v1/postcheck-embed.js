@@ -319,6 +319,7 @@
           }),
         });
         const body = await res.json();
+        if (res.status === 401) throw new Error('Sign in to PostCheck to use this widget.');
         const fmt = parseFiveSegments(body?.data?.postcode || code);
         const isVerified =
           body?.ok &&

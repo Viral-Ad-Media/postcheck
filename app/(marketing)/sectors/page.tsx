@@ -108,7 +108,7 @@ export default function SectorsPage() {
     <MarketingShell
       currentPath="/sectors"
       breadcrumbs={[
-        { name: 'Live Sandbox', path: '/' },
+        { name: 'Home', path: '/' },
         { name: 'Sectors', path: '/sectors' },
       ]}
     >
@@ -144,7 +144,7 @@ export default function SectorsPage() {
               5-segment technical architecture
             </Link>{' '}
             or test the{' '}
-            <Link href="/" className="mkt-inline-gold-link">
+            <Link href="/dashboard" className="mkt-inline-gold-link">
               interactive sandbox
             </Link>
             .
@@ -265,7 +265,7 @@ export default function SectorsPage() {
           </p>
           <div className="mkt-cta-row mkt-cta-center">
             <Button asChild size="lg" className="mkt-btn-gold">
-              <Link href="/">
+              <Link href="/dashboard">
                 Open live sandbox
                 <ArrowRight size={16} className="button-arrow" />
               </Link>
