@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight, ArrowUpRight, ChevronRight } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   getBreadcrumbSchema,
@@ -70,14 +69,12 @@ export function MarketingShell({
             <span className="mkt-brand-text">
               PostCheck<span className="brand-dot">.</span>
             </span>
-            <Badge variant="gold" className="mkt-brand-badge">
-              NIPOST L1
-            </Badge>
+
           </Link>
 
           <nav aria-label="Primary" className="mkt-nav">
             <div className="mkt-nav-links">
-              {NAV_LINKS.map((item) => {
+              {NAV_LINKS.filter(item => ['/how-it-works','/pilot'].includes(item.href)).map((item) => {
                 const active = currentPath === item.href;
                 return (
                   <Link
@@ -90,14 +87,15 @@ export function MarketingShell({
                   </Link>
                 );
               })}
+              <details className="pc-nav-more"><summary className="mkt-nav-link">More</summary><div className="pc-nav-dropdown"><Link className="pc-nav-mobile-link" href="/how-it-works">How it works</Link><Link className="pc-nav-mobile-link" href="/pilot">Fintech Pilot</Link>{NAV_LINKS.filter(item => !['/how-it-works','/pilot'].includes(item.href)).map(item => <Link key={item.href} href={item.href} aria-current={currentPath === item.href ? 'page' : undefined}>{item.label}</Link>)}<Link href="/signup">Create account</Link><div className="pc-nav-theme"><span>Appearance</span><ThemeToggle /></div></div></details>
             </div>
 
             <div className="mkt-nav-actions">
-              <ThemeToggle /><Link href="/login" className="mkt-nav-link">Sign in</Link><Link href="/signup" className="mkt-nav-link">Create account</Link>
+              
 
               <Button asChild size="sm" className="mkt-sandbox-cta">
                 <Link href="/dashboard">
-                  Verification workspace
+                  Dashboard
                   <ArrowRight size={14} className="button-arrow" />
                 </Link>
               </Button>

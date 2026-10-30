@@ -3791,3 +3791,36 @@ footer strong {
 .pc-account-menu{display:flex;gap:12px;align-items:center;font-size:13px;flex-wrap:wrap}.pc-account-menu [role=alert]{color:var(--err);max-width:230px}.pc-account-main{display:grid;place-items:center;min-height:65vh;padding:32px}.pc-account-main .pc-auth-card{max-width:500px}.pc-pilot-main{max-width:1200px;margin:auto;padding:40px 24px}.pc-pilot-main>h1{font-size:32px;margin-bottom:12px}.pc-pilot-main>p{color:var(--muted);margin-bottom:30px}.pc-pilot-gate{padding:35px;border:1px solid var(--line);border-radius:12px;background:var(--bg-alt)}.pc-pilot-gate h2{font-size:24px;margin-bottom:15px}.pc-pilot-gate p{line-height:1.8;color:var(--muted);margin-bottom:20px}
 @media(max-width:950px){.pc-auth-main{grid-template-columns:1fr 420px;gap:35px}.pc-auth-story h2{font-size:39px}.pc-auth-code{font-size:14px}.mkt-nav-actions{flex-wrap:wrap}}
 @media(max-width:760px){.pc-auth-main{grid-template-columns:1fr;padding:35px 20px;max-width:500px;gap:25px}.pc-auth-story{display:none}.pc-auth-header{padding:20px;flex-wrap:wrap}.pc-auth-card{padding:26px}.pc-auth-header .mkt-brand{font-size:20px}.topbar-right{flex-wrap:wrap}.pc-account-menu{font-size:12px}}
+
+.pc-ops { max-width: 1200px; margin: 0 auto; padding: 48px 24px; color: var(--ink); }
+.pc-ops h1 { font-size: clamp(32px,5vw,52px); font-weight: 750; margin: 12px 0; }
+.pc-ops h2 { font-size: 26px; font-weight: 650; margin-bottom: 12px; }
+.pc-ops p { max-width: 85ch; line-height: 1.7; margin: 12px 0; }
+.pc-ops section { margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--line); }
+.pc-ops a { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; }
+.pc-ops-scroll { overflow-x: auto; margin: 20px 0; }
+.pc-ops table { border-collapse: collapse; width: 100%; min-width: 700px; font-size: 14px; }
+.pc-ops th, .pc-ops td { padding: 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.pc-ops th { background: var(--bg-alt); }
+.pc-ops li { margin: 12px 0; line-height: 1.6; }
+.pc-ops-banner { padding: 18px; background: var(--conv-bg); border: 1px solid var(--conv-line); border-radius: 12px; margin: 24px 0; }
+
+.pc-nav-more { position: relative; }
+.pc-nav-more summary { cursor: pointer; list-style: none; }
+.pc-nav-more summary::-webkit-details-marker { display: none; }
+.pc-nav-more summary::after { content: '⌄'; margin-left: 6px; }
+.pc-nav-dropdown { position: absolute; top: calc(100% + 12px); right: 0; z-index: 80; min-width: 215px; padding: 8px; background: var(--surf); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lift); }
+.pc-nav-dropdown a { display: block; padding: 12px; border-radius: 8px; font-size: 14px; }
+.pc-nav-dropdown a:hover { background: var(--bg-alt); }
+.pc-nav-theme { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding: 10px; font-size: 13px; }
+.pc-admin-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: 16px; margin: 24px 0; }
+.pc-admin-card { background: var(--surf); border: 1px solid var(--line); border-radius: 12px; padding: 22px; }
+.pc-admin-card strong { display: block; font-size: 32px; margin-top: 12px; }
+.pc-admin-role-form { display: flex; flex-wrap: wrap; gap: 8px; min-width: 300px; }
+.pc-admin-role-form input,.pc-admin-role-form select { border: 1px solid var(--line); padding: 8px; border-radius: 6px; background: var(--surf); color: var(--ink); }
+.pc-admin-role-form button { padding: 8px 14px; border-radius: 6px; background: var(--accent); color: white; }
+@media (max-width: 600px) { .mkt-header-inner { gap: 12px; } .mkt-nav { gap: 10px; } .mkt-nav-links { gap: 4px; } .mkt-nav-link { font-size: 12px; padding: 8px 6px; } }
+
+.pc-nav-dropdown .pc-nav-mobile-link { display: none; }
+@media (max-width: 960px) { .mkt-nav-links { display: flex; } .mkt-nav-links > a { display: none; } .pc-nav-dropdown .pc-nav-mobile-link { display: block; } }
+@media (max-width: 600px) { .mkt-header-inner { padding: 12px 16px; } .mkt-brand { font-size: 18px; gap: 7px; } .mkt-logo-img { width: 26px; height: 26px; } .mkt-nav { gap: 8px; } }

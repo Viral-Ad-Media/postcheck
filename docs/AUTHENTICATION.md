@@ -32,7 +32,7 @@ Keep email confirmation enabled. Set the provider password minimum to at least 1
 
 Configure an appropriate email sender and SMTP provider before inviting users. The default Supabase email service has delivery/recipient restrictions. Supabase Auth rate limits apply. Enable CAPTCHA before a broad public rollout if needed; that requires adding the matching challenge UI and passing its token to the auth calls.
 
-The dashboard URL settings and actual email delivery still require confirmation; the connector does not expose these settings and the browser session was signed out. Do not treat a successful build or a public settings response as successful signup/email delivery.
+The production Site URL and the four exact redirects above were saved in the Supabase dashboard during setup. Actual email delivery and provider password/sender settings still require confirmation. Do not treat a successful build or a public settings response as successful signup/email delivery.
 
 ## Routes
 
@@ -56,7 +56,7 @@ The root now renders the existing marketing overview. All existing marketing con
 - Password recovery errors never count as sent emails. Unknown account reset requests receive generic acknowledgement from the provider/application.
 - Password updates attempt global refresh-session revocation and return to login. Existing access tokens can remain valid until their normal expiry.
 - Verification logs remain browser-local and are keyed by authenticated user ID. Old unscoped logs are not imported into another account.
-- No customer identity table, profile table, or new database schema is introduced. Add and test RLS policies before storing user data in public tables.
+- No customer identity or profile table is introduced. Superadmin management uses a private role-audit schema. Add and test RLS policies before storing user data in public tables.
 
 ## Validation
 
@@ -67,3 +67,7 @@ The root now renders the existing marketing overview. All existing marketing con
 `npm run test:auth-http` starts the production build against a temporary local mock Supabase service. It checks public routes, anonymous and forged-cookie rejection, protected descendants, API 401 behavior and invalid callbacks. It does not create real Supabase users or send email.
 
 Live acceptance remains necessary after URL/email configuration: create an account using an inbox you control, confirm, sign in, reload the dashboard, sign out, request password recovery, change password, and verify the old password fails. Also test expired/consumed links and provider email rate limits.
+
+## Staff permissions
+
+See [submission/ACCESS.md](submission/ACCESS.md) for server-enforced application roles. `/dashboard/operations` and all four report endpoints independently check staff permissions; budget data is owner-only. Luqman’s requested superadmin account is provisioned; email confirmation is pending. Other roles require administrator assignment.
