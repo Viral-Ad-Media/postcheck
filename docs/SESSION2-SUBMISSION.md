@@ -1,3 +1,7 @@
+# Superseded submission draft
+
+Use [the current submission package](submission/README.md). The historical draft below contains unverified statistics and integration claims and must not be submitted or narrated without independent verification. Its old root-workspace route is superseded by `/dashboard`.
+
 # PostCheck — "Built on Nigeria's Postcode" Session 2 Submission Package
 
 - **Product**: PostCheck (by Viral Ad Media — Lagos Team)
