@@ -161,6 +161,48 @@
   --gold-wash: rgba(235, 199, 0, 0.14);
 }
 
+/* Coal sections (hero, impact, CTA, footer) use light-on-dark text, so they
+   carry the dark-theme tokens locally and look the same in both themes. Derived shadcn tokens are restated
+   because custom properties resolve where they are declared. */
+.coal-band {
+  --bg: #1a1b26;
+  --bg-alt: #20212c;
+  --surf: #262734;
+  --line: hsla(0, 0%, 100%, 0.15);
+  --line-soft: hsla(0, 0%, 100%, 0.09);
+  --ink: var(--on-coal);
+  --ink-2: #d8dae5;
+  --muted: #aeb0bd;
+  --faint: #9598ab;
+  --link: #f5d52b;
+  --accent: #3fd584;
+  --ok: #3fd584;
+  --conv-bg: #1c2b24;
+  --conv-line: rgba(63, 213, 132, 0.18);
+  --err: #ff8a8e;
+  --err-tint: rgba(255, 138, 142, 0.12);
+  --ok-tint: rgba(63, 213, 132, 0.12);
+  --tile-bg: rgba(63, 213, 132, 0.12);
+  --gold-wash: rgba(235, 199, 0, 0.14);
+  --background: var(--bg);
+  --foreground: var(--ink);
+  --card: var(--surf);
+  --card-foreground: var(--ink);
+  --popover: var(--surf);
+  --popover-foreground: var(--ink);
+  --secondary: var(--bg-alt);
+  --secondary-foreground: var(--ink);
+  --muted-foreground: var(--muted);
+  --accent-foreground: var(--ink);
+  --destructive: var(--err);
+  --border: var(--line);
+  --input: var(--line);
+
+  background: var(--bg);
+  color: var(--ink);
+  color-scheme: dark;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -277,6 +319,8 @@ svg {
   padding: 35px 20px 0;
   position: fixed;
   inset: 0 auto 0 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .brand {
@@ -391,6 +435,7 @@ svg {
 }
 
 .sidebar-card {
+  flex-shrink: 0;
   color-scheme: dark;
   color: var(--on-coal);
   accent-color: var(--gold);
@@ -3818,7 +3863,7 @@ footer strong {
 .pc-admin-card strong { display: block; font-size: 32px; margin-top: 12px; }
 .pc-admin-role-form { display: flex; flex-wrap: wrap; gap: 8px; min-width: 300px; }
 .pc-admin-role-form input,.pc-admin-role-form select { border: 1px solid var(--line); padding: 8px; border-radius: 6px; background: var(--surf); color: var(--ink); }
-.pc-admin-role-form button { padding: 8px 14px; border-radius: 6px; background: var(--accent); color: white; }
+.pc-admin-role-form button { padding: 8px 14px; border-radius: 6px; background: var(--accent); color: var(--bg); font-weight: 600; }
 @media (max-width: 600px) { .mkt-header-inner { gap: 12px; } .mkt-nav { gap: 10px; } .mkt-nav-links { gap: 4px; } .mkt-nav-link { font-size: 12px; padding: 8px 6px; } }
 
 .pc-nav-dropdown .pc-nav-mobile-link { display: none; }
