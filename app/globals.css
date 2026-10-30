@@ -434,81 +434,8 @@ svg {
   padding: 1px 7px;
 }
 
-.sidebar-card {
-  flex-shrink: 0;
-  color-scheme: dark;
-  color: var(--on-coal);
-  accent-color: var(--gold);
-  margin: auto 4px 36px;
-  padding: 20px 16px;
-  background: var(--coal);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  position: relative;
-  overflow: hidden;
-  box-shadow:
-    0 10px 24px rgba(17, 17, 21, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
-}
-
-.sidebar-card::before {
-  content: "";
-  position: absolute;
-  width: 140px;
-  height: 140px;
-  top: -60px;
-  right: -50px;
-  background: rgba(235, 199, 0, 0.14);
-  filter: blur(36px);
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.mini-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  background: rgba(235, 199, 0, 0.14);
-  border: 1px solid rgba(235, 199, 0, 0.35);
-  color: var(--gold);
-}
-
-.sidebar-card h3 {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--on-coal);
-  line-height: 1.5;
-  margin: 12px 0 6px;
-  text-wrap: balance;
-}
-
-.sidebar-card p {
-  font-size: 11.5px;
-  line-height: 1.65;
-  color: var(--on-coal-muted);
-  margin: 0;
-  text-wrap: pretty;
-}
-
-.sidebar-card a {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--gold);
-  font-weight: 600;
-  margin-top: 16px;
-  transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out);
-}
-
-.sidebar-card a:hover {
-  opacity: 0.88;
-  transform: translateX(1px);
-}
-
 .sidebar-footer {
+  margin-top: auto;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1676,7 +1603,6 @@ footer strong {
   }
   .workspace-label,
   .nav-label,
-  .sidebar-card,
   .sidebar-footer {
     display: none;
   }
@@ -1826,15 +1752,6 @@ footer strong {
   }
 }
 
-.nav-label-spaced {
-  margin-top: 22px;
-}
-
-.sidebar-links {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 18px;
-}
 
 /* ============================================================================
    Static Marketing Pages (pitch.postcode.gov.ng Theme & Layout System)
@@ -3800,7 +3717,7 @@ footer strong {
 }
 
 @media (max-width: 650px) {
-  .sidebar-links {
+  .sidebar-pilot-link {
     display: none;
   }
   .mkt-segment-grid {

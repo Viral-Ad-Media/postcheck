@@ -6,8 +6,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ArrowRight,
   ArrowUpRight,
-  BookOpen,
-  Building2,
   Check,
   CheckCheck,
   ChevronRight,
@@ -905,48 +903,13 @@ curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(que
               </Badge>
             </TabsTrigger>
           </TabsList>
-        </nav>
-
-        <p className="nav-label nav-label-spaced">PRODUCT &amp; PITCH</p>
-        <nav aria-label="Product and pitch" className="sidebar-links">
-          <Link href="/overview" className="nav-item">
-            <BookOpen size={17} />
-            Overview
-            <ChevronRight size={14} />
-          </Link>
-          <Link href="/how-it-works" className="nav-item">
-            <Layers3 size={17} />
-            How it works
-            <ChevronRight size={14} />
-          </Link>
-          <Link href="/sectors" className="nav-item">
-            <Building2 size={17} />
-            Sectors
-            <ChevronRight size={14} />
-          </Link>
-          <Link href="/dashboard/pilot" className="nav-item">
-            <Code2 size={17} />
+          <Link href="/dashboard/pilot" className="nav-item sidebar-pilot-link">
+            <Code2 size={18} />
             Fintech pilot
             <ChevronRight size={14} />
           </Link>
-          <Link href="/privacy" className="nav-item">
-            <LockKeyhole size={17} />
-            Privacy &amp; NDPA
-            <ChevronRight size={14} />
-          </Link>
         </nav>
 
-        <Card className="sidebar-card">
-          <span className="mini-icon">
-            <Layers3 size={18} />
-          </span>
-          <h3>Built for better onboarding.</h3>
-          <p>A postcode-first address step for Nigerian businesses.</p>
-          <Link href="/overview">
-            Read the pitch overview
-            <ArrowUpRight size={14} />
-          </Link>
-        </Card>
         <div className="sidebar-footer">
           <Avatar className="avatar">
             <AvatarFallback>VA</AvatarFallback>
