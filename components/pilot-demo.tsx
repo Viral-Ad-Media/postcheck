@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SITE_URL } from '@/lib/seo';
 
 type PilotScenarioId = 'mfb_tier2' | 'neobank_card' | 'pos_merchant';
 
@@ -104,7 +105,6 @@ export function PilotDemo() {
         'data-publishable-key',
         'nipost_pk_test_vam_session2_demo'
       );
-      el.setAttribute('data-api-endpoint', '/api/postcode');
       el.setAttribute('data-initial-postcode', scenario.sampleCode);
       host.appendChild(el);
     }
@@ -122,15 +122,13 @@ export function PilotDemo() {
     };
   }, [scenario.sampleCode]);
 
-  const embedCode = `<!-- Same-origin authenticated demo. Requires a signed-in PostCheck session. -->
+  const embedCode = `<!-- Your site's origin must be on the PostCheck widget allowlist. -->
 <postcheck-address-widget
   data-publishable-key="nipost_pk_test_vam_session2_demo"
-  data-allowed-origin="https://onboarding.partnerfintech.ng"
-  data-api-endpoint="/api/postcode"
   data-initial-postcode="${scenario.sampleCode}"
 ></postcheck-address-widget>
 <script
-  src="https://postcheck.viraladmedia.com/widget/v1/postcheck-embed.js"
+  src="${SITE_URL}/widget/v1/postcheck-embed.js"
   async
 ></script>`;
 

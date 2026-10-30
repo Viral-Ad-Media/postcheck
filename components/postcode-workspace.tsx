@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SITE_URL } from '@/lib/seo';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { BatchAuditItem } from '@/lib/nipost';
@@ -752,7 +753,7 @@ export function PostcodeWorkspace({ userId, email }: { userId: string; email?: s
   data-escalation-level="${tierLevel}"
 ></div>
 <script
-  src="https://postcheck.viraladmedia.com/widget/v1/postcheck-embed.js"
+  src="${SITE_URL}/widget/v1/postcheck-embed.js"
   async
 ></script>
 <script>
@@ -764,7 +765,9 @@ export function PostcodeWorkspace({ userId, email }: { userId: string; email?: s
 </script>`
       : sdkFormat === 'node'
         ? `// PostCheck Phase 2 · Fintech Server-to-Server KYC Handoff Integration
-const response = await fetch('https://postcheck.viraladmedia.com/api/postcode', {
+// Preview: /api/postcode currently requires a signed-in PostCheck session.
+// Partner server API keys are planned for Phase 2.
+const response = await fetch('${SITE_URL}/api/postcode', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

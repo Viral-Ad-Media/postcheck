@@ -11,11 +11,13 @@ PostCheck is a Nigerian onboarding and address verification web application buil
 - **Automated 4-Check Acceptance Suite**: Executes live staging checks against the NIPOST sandbox dataset and exports redacted JSON verification evidence.
 
 ## Site Map & Documentation Pages
-- [Live Verification Workspace](https://postcheck.viraladmedia.com/): Interactive NIPOST postcode capture, 5-part segment assembly, L1 verification, and the 4-check API test suite.
-- [Product Overview](https://postcheck.viraladmedia.com/overview): Executive summary, economic impact (N50bn to N80bn annual misdelivery cost in Nigeria), selection rubric alignment, session schedule, and FAQ.
-- [How It Works & Technical Architecture](https://postcheck.viraladmedia.com/how-it-works): Detailed breakdown of the 5-segment postcode anatomy, the 3-step KYC onboarding flow, and the L1–L5 graded lookup matrix.
-- [Industry Sectors & Onboarding Playbooks](https://postcheck.viraladmedia.com/sectors): Use cases across Identity & Onboarding, Banking & POS Agent Networks, Delivery & Logistics, Telecoms, Utilities, Retail, Property/Insurance/Health, and Emergency Response.
-- [Privacy, NDPA Compliance & Accessibility](https://postcheck.viraladmedia.com/privacy): Data minimization under the Nigeria Data Protection Act (NDPA) 2023, server-side API key isolation, verification scope boundaries, and WCAG accessibility commitments.
+- [Home](https://postcheck-nine.vercel.app/): Public product overview.
+- [Verification Dashboard](https://postcheck-nine.vercel.app/dashboard): Sign-in required. Interactive NIPOST postcode capture, 5-part segment assembly, L1 verification, and the 4-check API test suite.
+- [Fintech Pilot](https://postcheck-nine.vercel.app/pilot): Embeddable `<postcheck-address-widget>` and 30-day pilot plan.
+- [Product Overview](https://postcheck-nine.vercel.app/overview): Executive summary, economic impact (N50bn to N80bn annual misdelivery cost in Nigeria), selection rubric alignment, session schedule, and FAQ.
+- [How It Works & Technical Architecture](https://postcheck-nine.vercel.app/how-it-works): Detailed breakdown of the 5-segment postcode anatomy, the 3-step KYC onboarding flow, and the L1–L5 graded lookup matrix.
+- [Industry Sectors & Onboarding Playbooks](https://postcheck-nine.vercel.app/sectors): Use cases across Identity & Onboarding, Banking & POS Agent Networks, Delivery & Logistics, Telecoms, Utilities, Retail, Property/Insurance/Health, and Emergency Response.
+- [Privacy, NDPA Compliance & Accessibility](https://postcheck-nine.vercel.app/privacy): Data minimization under the Nigeria Data Protection Act (NDPA) 2023, server-side API key isolation, verification scope boundaries, and WCAG accessibility commitments.
 
 ## Official NIPOST References
 - [NIPOST Developer Documentation](https://docs.postcode.gov.ng/)

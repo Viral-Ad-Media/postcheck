@@ -320,7 +320,7 @@ export function buildKycHandoffPayload(
 export const WELCOME_CREDITS = 500;
 
 export const DEFAULT_ALLOWED_ORIGINS = [
-  'https://postcheck.viraladmedia.com',
+  'https://postcheck-nine.vercel.app',
   'https://onboarding.partnerfintech.ng',
   'https://kyc.lagosmfb.ng',
 ];
@@ -539,7 +539,7 @@ export function buildWebhookEventPayload(
     target_endpoint: endpointUrl,
     headers: {
       'Content-Type': 'application/json',
-      'User-Agent': 'PostCheck-Webhook-Dispatcher/1.0 (+https://postcheck.viraladmedia.com)',
+      'User-Agent': 'PostCheck-Webhook-Dispatcher/1.0 (+https://postcheck-nine.vercel.app)',
       'X-PostCheck-Event': eventType,
       'X-PostCheck-Signature': `t=${unixTs},v1=${previewDigest}`,
     },
