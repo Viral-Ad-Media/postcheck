@@ -118,7 +118,7 @@ export default function HowItWorksPage() {
     <MarketingShell
       currentPath="/how-it-works"
       breadcrumbs={[
-        { name: 'Live Sandbox', path: '/' },
+        { name: 'Home', path: '/' },
         { name: 'How It Works', path: '/how-it-works' },
       ]}
     >
@@ -151,7 +151,7 @@ export default function HowItWorksPage() {
             alphanumeric characters across 5 hierarchical segments) that maps
             every addressable building from state level down to the individual
             property unit. Test it directly in our{' '}
-            <Link href="/" className="mkt-inline-gold-link">
+            <Link href="/dashboard" className="mkt-inline-gold-link">
               live verification sandbox
             </Link>{' '}
             or read the{' '}
@@ -354,7 +354,7 @@ export default function HowItWorksPage() {
           </p>
           <div className="mkt-cta-row mkt-cta-center">
             <Button asChild size="lg" className="mkt-btn-gold">
-              <Link href="/">
+              <Link href="/dashboard">
                 Open live sandbox
                 <ArrowRight size={16} className="button-arrow" />
               </Link>

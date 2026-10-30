@@ -122,7 +122,7 @@ export default function OverviewPage() {
     <MarketingShell
       currentPath="/overview"
       breadcrumbs={[
-        { name: 'Live Sandbox', path: '/' },
+        { name: 'Home', path: '/' },
         { name: 'Overview', path: '/overview' },
       ]}
       extraSchema={faqSchema}
@@ -161,7 +161,7 @@ export default function OverviewPage() {
 
             <div className="mkt-cta-row">
               <Button asChild size="lg" className="mkt-btn-gold">
-                <Link href="/">
+                <Link href="/dashboard">
                   Launch live sandbox
                   <ArrowRight size={16} className="button-arrow" />
                 </Link>
@@ -290,7 +290,7 @@ export default function OverviewPage() {
                 </Link>
                 .
               </p>
-              <Link href="/" className="mkt-card-link">
+              <Link href="/dashboard" className="mkt-card-link">
                 Try live L1 verification <ArrowRight size={14} />
               </Link>
             </Card>
@@ -461,7 +461,7 @@ export default function OverviewPage() {
           </p>
           <div className="mkt-cta-row mkt-cta-center">
             <Button asChild size="lg" className="mkt-btn-gold">
-              <Link href="/">
+              <Link href="/dashboard">
                 Open live sandbox
                 <ArrowRight size={16} className="button-arrow" />
               </Link>

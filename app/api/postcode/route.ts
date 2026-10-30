@@ -1,4 +1,5 @@
 import 'server-only';
+import { currentUser } from '@/lib/supabase/server';
 import { callNipost, runBatch, runSuite, type Operation } from '@/lib/nipost';
 
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,7 @@ const ALLOWED_OPERATIONS: ReadonlyArray<Operation> = [
 const key = () => process.env.NIPOST_API_KEY;
 
 export async function GET() {
+  if (!await currentUser()) return Response.json({ error: "Sign in required" }, { status: 401, headers });
   return Response.json(
     {
       configured: !!key()?.startsWith('nipost_test_'),
@@ -36,6 +38,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  if (!await currentUser()) return Response.json({ error: "Sign in required" }, { status: 401, headers });
   const origin = request.headers.get('origin');
   if (origin && origin !== new URL(request.url).origin)
     return Response.json(

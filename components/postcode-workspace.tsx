@@ -1,4 +1,5 @@
 'use client';
+import { AccountMenu } from '@/components/account-menu';
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
@@ -85,7 +86,7 @@ type Evidence = Result & { passed: boolean };
 type Suggestion = { code: string; label?: string };
 type NamedCode = { code: string; name?: string };
 
-const LOG_STORAGE_KEY = 'postcheck-verification-log-v1';
+
 
 const names: Record<string, string> = {
   search: 'Postcode autocomplete',
@@ -118,7 +119,8 @@ async function request(
   return body;
 }
 
-export function PostcodeWorkspace() {
+export function PostcodeWorkspace({ userId, email }: { userId: string; email?: string }) {
+  const LOG_STORAGE_KEY = `postcheck-verification-log-v2:${userId}`;
   const [tab, setTab] = useState<'capture' | 'phase2' | 'tests' | 'batch'>(
     'capture'
   );
@@ -919,7 +921,7 @@ curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(que
             Sectors
             <ChevronRight size={14} />
           </Link>
-          <Link href="/pilot" className="nav-item">
+          <Link href="/dashboard/pilot" className="nav-item">
             <Code2 size={17} />
             Fintech pilot
             <ChevronRight size={14} />
@@ -947,7 +949,7 @@ curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(que
             <AvatarFallback>VA</AvatarFallback>
           </Avatar>
           <div>
-            Viral Ad Media<small>Lagos Team · Session 2</small>
+            {email}<small>Verified account · Sandbox</small>
           </div>
           <LockKeyhole size={14} />
         </div>
@@ -984,9 +986,7 @@ curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(que
               Sandbox
             </Badge>
             <ThemeToggle />
-            <Avatar className="top-avatar">
-              <AvatarFallback>VA</AvatarFallback>
-            </Avatar>
+            <AccountMenu email={email} />
           </div>
         </header>
 
@@ -3126,7 +3126,7 @@ curl -X GET "https://api.postcode.gov.ng/v1/lookup?code=${encodeURIComponent(que
               <Link href="/overview">Overview</Link>
               <Link href="/how-it-works">How It Works</Link>
               <Link href="/sectors">Sectors</Link>
-              <Link href="/pilot">Fintech Pilot</Link>
+              <Link href="/dashboard/pilot">Fintech Pilot</Link>
               <Link href="/privacy">Privacy &amp; NDPA</Link>
               <a href="/sitemap.xml">Sitemap</a>
               <a href="/llms.txt">LLMs.txt</a>

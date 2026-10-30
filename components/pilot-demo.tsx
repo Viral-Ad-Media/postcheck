@@ -122,11 +122,11 @@ export function PilotDemo() {
     };
   }, [scenario.sampleCode]);
 
-  const embedCode = `<!-- Drop-in PostCheck Web Component (Shadow DOM encapsulated) -->
+  const embedCode = `<!-- Same-origin authenticated demo. Requires a signed-in PostCheck session. -->
 <postcheck-address-widget
   data-publishable-key="nipost_pk_test_vam_session2_demo"
   data-allowed-origin="https://onboarding.partnerfintech.ng"
-  data-api-endpoint="https://postcheck.viraladmedia.com/api/postcode"
+  data-api-endpoint="/api/postcode"
   data-initial-postcode="${scenario.sampleCode}"
 ></postcheck-address-widget>
 <script

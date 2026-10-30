@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-export const SITE_URL = 'https://postcheck.viraladmedia.com';
+export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://postcheck-nine.vercel.app';
 export const SITE_NAME = 'PostCheck by Viral Ad Media';
 export const OG_IMAGE_URL = `${SITE_URL}/og-image.png`;
 export const OG_IMAGE_ALT =

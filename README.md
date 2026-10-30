@@ -1,3 +1,9 @@
+## Authentication and route separation
+
+Supabase email/password authentication is integrated with project `qdwlbeknzjimybwszsdg`. The public homepage now shows the marketing overview; live tools are at `/dashboard` and the interactive widget is at `/dashboard/pilot`. Both postcode API methods require a verified account. Login, signup, resend confirmation, password recovery, account details and sign-out are included.
+
+Before merging/deploying, complete the Supabase redirect and email settings in [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md). Vercel connection variables are configured; live email-flow testing remains pending. Existing marketing content and NIPOST operations are retained.
+
 # PostCheck
 
 **Built on Nigeria's Postcode** — An interactive NIPOST Postcode API integration & address-verification platform built with Next.js 16 (App Router), React 19, and TypeScript.

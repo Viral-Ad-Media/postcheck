@@ -56,7 +56,7 @@ export function MarketingShell({
       <header className="mkt-header">
         <div className="mkt-header-inner">
           <Link
-            href="/overview"
+            href="/"
             className="mkt-brand"
             aria-label="PostCheck by Viral Ad Media — Overview"
           >
@@ -93,10 +93,10 @@ export function MarketingShell({
             </div>
 
             <div className="mkt-nav-actions">
-              <ThemeToggle />
+              <ThemeToggle /><Link href="/login" className="mkt-nav-link">Sign in</Link><Link href="/signup" className="mkt-nav-link">Create account</Link>
 
               <Button asChild size="sm" className="mkt-sandbox-cta">
-                <Link href="/">
+                <Link href="/dashboard">
                   Verification workspace
                   <ArrowRight size={14} className="button-arrow" />
                 </Link>
@@ -159,7 +159,7 @@ export function MarketingShell({
 
           <div className="mkt-footer-col">
             <p className="mkt-footer-heading">Product & Pages</p>
-            <Link href="/">Live verification workspace</Link>
+            <Link href="/dashboard">Live verification workspace</Link>
             <Link href="/pilot">Fintech pilot &amp; Web Component</Link>
             <Link href="/overview">Programme overview</Link>
             <Link href="/how-it-works">How 5-segment lookup works</Link>
