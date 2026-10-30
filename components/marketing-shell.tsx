@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, ArrowUpRight, ChevronRight } from 'lucide-react';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Button } from '@/components/ui/button';
 import {
@@ -44,13 +44,6 @@ export function MarketingShell({
       <a href="#mkt-main" className="mkt-skip-link">
         Skip to content
       </a>
-
-      <div className="mkt-ministry-bar">
-        Built on Nigeria’s Postcode · Session 2: Identity, Banking & Payments ·
-        PostCheck by Viral Ad Media
-      </div>
-
-      <div className="hairline" aria-hidden="true" />
 
       <header className="mkt-header">
         <div className="mkt-header-inner">
@@ -103,24 +96,6 @@ export function MarketingShell({
           </nav>
         </div>
       </header>
-
-      <nav aria-label="Breadcrumb" className="mkt-breadcrumb-bar">
-        <ol className="mkt-breadcrumb-list">
-          {breadcrumbs.map((crumb, idx) => {
-            const isLast = idx === breadcrumbs.length - 1;
-            return (
-              <li key={crumb.path + crumb.name} className="mkt-breadcrumb-item">
-                {idx > 0 && <ChevronRight size={13} aria-hidden="true" />}
-                {isLast ? (
-                  <span aria-current="page">{crumb.name}</span>
-                ) : (
-                  <Link href={crumb.path}>{crumb.name}</Link>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
 
       <main id="mkt-main" className="mkt-main">
         {children}
