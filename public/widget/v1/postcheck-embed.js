@@ -5,10 +5,12 @@
  * Usage:
  *   <postcheck-address-widget
  *     data-publishable-key="nipost_pk_test_vam_session2_demo"
- *     data-allowed-origin="https://onboarding.partnerfintech.ng"
- *     data-api-endpoint="/api/postcode"
  *   ></postcheck-address-widget>
- *   <script src="/widget/v1/postcheck-embed.js" async></script>
+ *   <script src="https://postcheck-nine.vercel.app/widget/v1/postcheck-embed.js" async></script>
+ *
+ * Lookups go to /api/widget on the host that served this script. That host only
+ * answers origins listed in its POSTCHECK_WIDGET_ORIGINS setting. Override with
+ * data-api-endpoint if needed.
  */
 (function () {
   if (typeof window === 'undefined' || typeof HTMLElement === 'undefined') {
@@ -16,6 +18,18 @@
   }
 
   const SAMPLE_CODE = 'FC-01-A01-KP-27';
+
+  const scriptEl =
+    document.currentScript ||
+    document.querySelector('script[src*="/widget/v1/postcheck-embed.js"]');
+  let DEFAULT_ENDPOINT = '/api/widget';
+  try {
+    if (scriptEl && scriptEl.src) {
+      DEFAULT_ENDPOINT = new URL('/api/widget', scriptEl.src).href;
+    }
+  } catch {
+    /* Keep the relative default. */
+  }
 
   // Shared constructed stylesheet across all widget instances (modern-web-guidance: shadow-dom)
   const styles = `
@@ -299,7 +313,7 @@
         return;
       }
 
-      const endpoint = this.getAttribute('data-api-endpoint') || '/api/postcode';
+      const endpoint = this.getAttribute('data-api-endpoint') || DEFAULT_ENDPOINT;
       const pubKey =
         this.getAttribute('data-publishable-key') ||
         'nipost_pk_test_vam_session2_demo';
@@ -318,8 +332,16 @@
             input: { code, level: 1 },
           }),
         });
-        const body = await res.json();
-        if (res.status === 401) throw new Error('Sign in to PostCheck to use this widget.');
+        const body = await res.json().catch(() => ({}));
+        if (res.status === 403 || res.status === 429) {
+          badgeEl.className = 'pc-badge err';
+          badgeEl.textContent = res.status === 403 ? 'NOT ENABLED' : 'TRY AGAIN SOON';
+          statusEl.textContent =
+            res.status === 403
+              ? 'This site is not yet enabled for PostCheck verification.'
+              : 'Too many checks from this device. Please wait a minute and retry.';
+          return;
+        }
         const fmt = parseFiveSegments(body?.data?.postcode || code);
         const isVerified =
           body?.ok &&
@@ -385,7 +407,7 @@
         badgeEl.className = 'pc-badge err';
         badgeEl.textContent = 'NETWORK ERROR';
         statusEl.textContent =
-          'Could not reach the PostCheck verification proxy. Please retry.';
+          'Could not reach PostCheck verification. Please retry. If this continues, this site may not be enabled for the widget yet.';
       } finally {
         verifyBtn.disabled = false;
       }

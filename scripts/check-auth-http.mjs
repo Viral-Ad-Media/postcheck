@@ -24,7 +24,7 @@ const fakeAuth=createServer((req,res)=>{
 fakeAuth.listen(0,'127.0.0.1');await once(fakeAuth,'listening');
 const apiPort=fakeAuth.address().port;
 const next=spawn(process.execPath,['node_modules/next/dist/bin/next','start','--hostname','127.0.0.1','--port','0'],{
- env:{...process.env,NEXT_PUBLIC_SUPABASE_URL:`http://127.0.0.1:${apiPort}`,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'test-public-key',NEXT_PUBLIC_SITE_URL:'http://localhost:3000'},stdio:['ignore','pipe','pipe']
+ env:{...process.env,NEXT_PUBLIC_SUPABASE_URL:`http://127.0.0.1:${apiPort}`,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:'test-public-key',NEXT_PUBLIC_SITE_URL:'http://localhost:3000',POSTCHECK_WIDGET_ORIGINS:'https://kyc.bank.ng',NIPOST_API_KEY:''},stdio:['ignore','pipe','pipe']
 });
 let output='';let errors='';next.stderr.on('data',d=>errors+=d);
 try {
@@ -80,5 +80,20 @@ try {
   if(!['superadmin','owner'].includes(role)) assert.ok(!html.includes('250,000'),role+' must not receive budget page data');
   if(!staff) assert.ok(!html.includes('KPI scorecard'),role+' must not receive operations page data');
  }
- console.log('Passed: role matrix, export permissions, private caching; 11 public pages, 5 protected routes, both API methods, invalid callback and forged-session rejection.');
+ const partner={'Content-Type':'application/json',Origin:'https://kyc.bank.ng'};
+ const pre=await fetch(base+'/api/widget',{method:'OPTIONS',headers:{Origin:'https://kyc.bank.ng','Access-Control-Request-Method':'POST'}});
+ assert.equal(pre.status,204);assert.equal(pre.headers.get('access-control-allow-origin'),'https://kyc.bank.ng');
+ const badPre=await fetch(base+'/api/widget',{method:'OPTIONS',headers:{Origin:'https://evil.example'}});
+ assert.equal(badPre.status,403);assert.equal(badPre.headers.get('access-control-allow-origin'),null);
+ const lookup=await fetch(base+'/api/widget',{method:'POST',headers:partner,body:JSON.stringify({operation:'lookup',input:{code:'FC-01-A01-KP-27'}})});
+ assert.equal(lookup.status,503,'Anonymous partner lookup reaches the NIPOST client (unconfigured key in test)');
+ assert.equal((await lookup.json()).error.code,'not_configured');assert.equal(lookup.headers.get('access-control-allow-origin'),'https://kyc.bank.ng');
+ for(const op of ['suite','batch','search','assemble']) {
+  const r=await fetch(base+'/api/widget',{method:'POST',headers:partner,body:JSON.stringify({operation:op,input:{code:'X'}})});assert.equal(r.status,400,op);
+ }
+ for(const origin of ['https://evil.example',undefined]) {
+  const r=await fetch(base+'/api/widget',{method:'POST',headers:{'Content-Type':'application/json',...(origin?{Origin:origin}:{})},body:JSON.stringify({operation:'lookup',input:{code:'FC-01-A01-KP-27'}})});
+  assert.equal(r.status,403,String(origin));
+ }
+ console.log('Passed: widget CORS/allowlist, role matrix, export permissions, private caching; 11 public pages, 5 protected routes, both API methods, invalid callback and forged-session rejection.');
 } finally {next.kill();fakeAuth.close();}
