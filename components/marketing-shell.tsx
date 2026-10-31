@@ -1,12 +1,18 @@
 import Link from 'next/link';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { SAMPLE, formatPostcode, getAdministrativeNames } from '@/lib/postcode';
 import { Button } from '@/components/ui/button';
 import {
   getBreadcrumbSchema,
   getLocalBusinessSchema,
   getWebApplicationSchema,
 } from '@/lib/seo';
+
+const sampleNames = getAdministrativeNames(formatPostcode(SAMPLE)?.segments);
+const sampleSummary = sampleNames
+  ? `${sampleNames.districtName} (${sampleNames.districtCode}), ${sampleNames.lgaName} (${sampleNames.lgaCode}), FCT`
+  : '';
 
 const NAV_LINKS = [
   { href: '/overview', label: 'Overview' },
@@ -125,8 +131,11 @@ export function MarketingShell({
               <em>Built on Nigeria’s Postcode</em> showcase.
             </p>
             <address className="mkt-business-address">
-              Viral Ad Media · Three Arms Zone, Abuja Municipal, FCT · Postcode{' '}
-              <code>FC-01-A01-KP-27</code> · +234 800 767 8245
+              Viral Ad Media · Three Arms Zone, Abuja Municipal, FCT · +234 800
+              767 8245
+              <br />
+              Sandbox sample postcode <code>{SAMPLE}</code> ·{' '}
+              {sampleSummary}
             </address>
           </div>
 

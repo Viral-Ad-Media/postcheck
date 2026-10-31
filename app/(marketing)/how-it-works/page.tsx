@@ -33,7 +33,7 @@ const SEGMENTS_DETAIL = [
     template: '99',
     name: 'LGA',
     format: '2 digits (01–99)',
-    desc: 'Zero-filled Local Government Area code within the state (e.g. 01 Abaji, 02 Abuja Municipal).',
+    desc: 'Zero-filled Local Government Area code within the state (e.g. 01 in the sandbox sample FC-01-A01-KP-27 = Abuja Municipal Area Council).',
     tone: 'c1',
   },
   {
