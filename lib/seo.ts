@@ -73,7 +73,6 @@ export function getLocalBusinessSchema() {
       streetAddress: 'Three Arms Zone, Abuja Municipal',
       addressLocality: 'Abuja',
       addressRegion: 'FCT',
-      postalCode: 'FC-01-A01-KP-27',
       addressCountry: 'NG',
     },
     geo: {

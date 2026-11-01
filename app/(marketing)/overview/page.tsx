@@ -16,6 +16,14 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { buildPageMetadata } from '@/lib/seo';
+import { SAMPLE, formatPostcode, getAdministrativeNames } from '@/lib/postcode';
+
+// One source of truth for the sandbox sample's decoded labels (lib/postcode.ts),
+// so the homepage, verdict screen and footer can't drift apart again.
+const sampleNames = getAdministrativeNames(formatPostcode(SAMPLE)?.segments);
+const sampleDecode = sampleNames
+  ? `${sampleNames.stateName} · ${sampleNames.lgaName} (${sampleNames.lgaCode}) · ${sampleNames.districtName} (${sampleNames.districtCode}) · Area KP · Building 27`
+  : SAMPLE;
 
 export const dynamic = 'force-static';
 
@@ -196,8 +204,7 @@ export default function OverviewPage() {
                     FC 01 A01 KP 27
                   </CardTitle>
                   <CardDescription>
-                    Federal Capital Territory · Abaji (01) · District A01 · Area
-                    KP · Building 27
+                    {sampleDecode}
                   </CardDescription>
                 </div>
                 <Badge variant="success">L1 VERIFIED</Badge>
