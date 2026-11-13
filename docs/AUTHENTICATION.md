@@ -26,7 +26,7 @@ Marketing pages are public. `/dashboard/*`, `/api/postcode`, and operations expo
 - Production branch: `br-restless-sky-zaar2c52`; database: `postcheck`.
 - Isolated preview/test branch: `br-weathered-fire-zaao28n4` (synthetic data only).
 - One confirmed Supabase account copied to production with its UUID, email, name, timestamps, role, and bcrypt hash preserved. Hash equality was checked without displaying it. There were zero role-audit rows to transfer.
-- Production and branch-specific Vercel preview database/signing variables prepared. Supabase remains live until this PR is merged and deployed.
+- Production Vercel database/signing variables are configured. Preview variables are pending explicit authorization: automatic approval review blocked transferring the test database credential and auth signing secret to Vercel. The preview builds, but authentication returns 503 until those variables are added and a new deployment is created. Supabase remains live until this PR is merged and deployed.
 - **Pending: the user selected another email sender; its domain/address and SMTP credentials have not been supplied. Do not merge for production until mail delivery and recovery pass.**
 
 Immediately before cutover, reconcile any new Supabase users, password changes, role changes and audit rows since the snapshot; keep Supabase signups/account changes quiet during this short final reconciliation. Import through trusted administrative tooling, parameterized SQL, and an encrypted temporary export; never commit hashes or secrets. Existing Better Auth credentials must not be overwritten by a retry. Do not copy Supabase sessions or recovery tokens.
