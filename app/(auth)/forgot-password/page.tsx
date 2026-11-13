@@ -1,5 +1,5 @@
 import { AuthForm } from '@/components/auth-form';
-import { authConfigured } from '@/lib/supabase/config';
+import { authConfigured } from '@/lib/auth/config';
 export const dynamic = 'force-dynamic';
 export default async function Page({searchParams}: {searchParams: Promise<Record<string, string | undefined>>}) {
   const params = await searchParams;

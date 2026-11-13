@@ -1,5 +1,5 @@
 import { PostcodeWorkspace } from '@/components/postcode-workspace';
-import { currentUser } from '@/lib/supabase/server';
+import { currentUser } from '@/lib/auth/server';
 import { redirect } from 'next/navigation';
 export default async function Dashboard() {
   const user = await currentUser();

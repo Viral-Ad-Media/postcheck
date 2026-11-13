@@ -14,4 +14,4 @@
 | Demo video | Actual screen recording, synthetic inputs, approved export | Live recording pending |
 | Application | Final links, owner approval, submission receipt | Not submitted |
 
-Automated tests use mocks to verify software behavior. They do not verify Supabase email delivery, production role provisioning, NIPOST connectivity, or pilot adoption. Keep those evidence categories separate.
+Automated tests use embedded PostgreSQL and mocked upstream services to verify software behavior. They do not verify Neon email delivery, production role provisioning, NIPOST connectivity, or pilot adoption. Keep those evidence categories separate.

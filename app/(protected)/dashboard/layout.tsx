@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { currentUser } from '@/lib/supabase/server';
+import { currentUser } from '@/lib/auth/server';
 import { roleFor, canVerify } from '@/lib/access';
 import { redirect } from 'next/navigation';
 export const dynamic = 'force-dynamic';

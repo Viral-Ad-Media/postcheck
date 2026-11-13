@@ -1,4 +1,4 @@
-import { currentUser } from '@/lib/supabase/server';
+import { currentUser } from '@/lib/auth/server';
 import { roleFor, canDownload } from '@/lib/access';
 import { reportCsv } from '@/lib/pilot-plan';
 export const dynamic = 'force-dynamic';

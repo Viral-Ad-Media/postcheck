@@ -1,5 +1,7 @@
 'use server';
-import { currentUser, createClient } from '@/lib/supabase/server';
+import { setRole } from '@/lib/admin';
+import { getPool } from '@/lib/db';
+import { currentUser } from '@/lib/auth/server';
 import { isSuperadmin, roleFor } from '@/lib/access';
 import { revalidatePath } from 'next/cache';
 export async function changeRole(_previous: {message:string}, form: FormData) {
@@ -11,9 +13,8 @@ export async function changeRole(_previous: {message:string}, form: FormData) {
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(target) || !['owner','build_lead','qa','demo_editor','participant','disabled'].includes(role) || reason.length<8 || reason.length>500) return {message:'Choose a valid role and provide an 8–500 character reason.'};
  if(target===user.id) return {message:'You cannot change your own role.'};
  try {
-  const {error}=await (await createClient()).rpc('postcheck_admin_set_role',{target_user:target,desired_role:role,change_reason:reason});
-  if(error) return {message:'Role was not changed. Check permission and try again.'};
+  await setRole(getPool(),user.id,target,role,reason);
  } catch {return {message:'Role service unavailable. No change confirmed.'};}
  revalidatePath('/dashboard/admin');
- return {message:'Role saved. Application access is checked on subsequent requests. Platform memberships and session revocation are managed separately.'};
+ return {message:'Role saved. Application access is checked on subsequent requests. Existing app sessions have been revoked. Platform memberships are managed separately.'};
 }

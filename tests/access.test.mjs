@@ -8,7 +8,7 @@ test('Self-editable metadata cannot grant staff access',()=>{
 });
 test('Explicit invalid or disabled role fails closed',()=>{
  for(const value of ['admin','OWNER','',{},['owner'],'disabled']) {
-  const role=roleFor({app_metadata:{postcheck_role:value}});
+  const role=roleFor({role:value});
   assert.equal(canVerify(role),false); assert.equal(canViewOperations(role),false);
  }
 });

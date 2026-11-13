@@ -1,73 +1,40 @@
-# PostCheck authentication
+# Neon and Better Auth
 
-Supabase project: `qdwlbeknzjimybwszsdg` (Postcheck), Europe West, in `viraladmediacontent@gmail.com's Org`.
+PostCheck runs Better Auth 1.7.22 inside Next.js using a server-only PostgreSQL connection to Neon. It does not use managed Neon Auth. Database credentials and the auth signing secret never enter client bundles.
 
-The public Auth settings endpoint was checked: email signups are enabled and email confirmation is required. No service-role key is needed or used. The application requires verified email before authorizing access.
+## Configuration
 
-## Environment
+Copy `.env.example` to `.env.local`. Set `DATABASE_URL` to a pooled Neon URL with `sslmode=verify-full`, and generate a random `BETTER_AUTH_SECRET` of at least 32 bytes. Set `BETTER_AUTH_URL` to the exact origin (production: `https://postcheck-nine.vercel.app`). Unconfigured previews use their unique `VERCEL_URL`; email links must be opened on that exact deployment, not a different preview alias.
 
-Copy `.env.example` to `.env.local` and fill in the project's publishable key from the Supabase Connect dialog. Production Vercel connection variables have been configured for the PostCheck project. Local development must set `NEXT_PUBLIC_SITE_URL=http://localhost:3000`.
+Set `AUTH_EMAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, and `SMTP_PASSWORD` for a verified sender. Port 465 uses TLS; other ports require STARTTLS. With no mail configuration, signup, resend, and recovery return 503 rather than claim a message was sent. Login for confirmed accounts remains available. Provider delivery must be tested with an actual inbox before cutover.
 
-- `NEXT_PUBLIC_SUPABASE_URL=https://qdwlbeknzjimybwszsdg.supabase.co`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: public `sb_publishable_…` key, never a secret/service-role key.
-- `NEXT_PUBLIC_SITE_URL`: exact app origin. Production is `https://postcheck-nine.vercel.app`. Preview deployments derive their origin from Vercel’s VERCEL_URL unless NEXT_PUBLIC_SITE_URL is set; add that exact callback URL to Supabase before testing email flows there.
-- `NIPOST_API_KEY`: existing server-side test key; never add a `NEXT_PUBLIC_` prefix.
+Run `npm run db:migrate` with the target environment loaded. It uses Better Auth's schema migrator and adds the role audit table. Initial generated SQL is retained in `migrations/` for connector-based provisioning. Never rerun the initial CREATE TABLE script on an existing schema; use the migration command instead.
 
-## Supabase dashboard settings (required before email flows go live)
+## Authentication and authorization
 
-Authentication → URL Configuration:
+Signup requires email verification. New and reset passwords require 12–128 characters and use Better Auth's default scrypt hashing. Imported bcrypt hashes are verified with bcryptjs, preserving existing passwords. Reset changes the hash to scrypt and revokes all sessions. Existing Supabase cookies are not transferred; users sign in again after cutover.
 
-Site URL: `https://postcheck-nine.vercel.app`
+Browser forms POST to `/api/auth/*` so Better Auth's database-backed rate limits execute. Sessions are stored in PostgreSQL, cookie caching is disabled, and protected server pages/APIs query the session each request. Cookies alone cannot grant access. A remembered login uses Better Auth's persistent cookie; an unchecked Remember me uses a browser-session cookie.
 
-Redirect URLs:
+Application roles live in the server-controlled `user.role` column; signup/update-user input cannot change it. Unknown roles fail closed. Superadmin queries recheck the database role and verified email inside a transaction. Changes require a reason, prohibit self changes and changes to/from superadmin, append an audit record, and revoke the target's sessions. Platform membership remains separate.
 
-```
-https://postcheck-nine.vercel.app/auth/callback
-https://postcheck-nine.vercel.app/auth/callback?next=/reset-password
-http://localhost:3000/auth/callback
-http://localhost:3000/auth/callback?next=/reset-password
-```
+Marketing pages are public. `/dashboard/*`, `/api/postcode`, and operations exports require verified sessions and their corresponding role permissions. `/api/widget` retains its partner-origin checks and existing public integration behavior.
 
-Keep email confirmation enabled. Set the provider password minimum to at least 12 characters to match the app. Keep the default confirmation/recovery email templates using `{{ .ConfirmationURL }}`. The app uses PKCE: open the email link in the same browser that started signup or recovery. A consumed/expired link returns a clear error and links to request a fresh one.
+## Migration prepared November 13, 2026
 
-Configure an appropriate email sender and SMTP provider before inviting users. The default Supabase email service has delivery/recipient restrictions. Supabase Auth rate limits apply. Enable CAPTCHA before a broad public rollout if needed; that requires adding the matching challenge UI and passing its token to the auth calls.
+- Neon project: `still-forest-27993468`, Luqman organization, AWS London.
+- Production branch: `br-restless-sky-zaar2c52`; database: `postcheck`.
+- Isolated preview/test branch: `br-weathered-fire-zaao28n4` (synthetic data only).
+- One confirmed Supabase account copied to production with its UUID, email, name, timestamps, role, and bcrypt hash preserved. Hash equality was checked without displaying it. There were zero role-audit rows to transfer.
+- Production and branch-specific Vercel preview database/signing variables prepared. Supabase remains live until this PR is merged and deployed.
+- **Pending: the user selected another email sender; its domain/address and SMTP credentials have not been supplied. Do not merge for production until mail delivery and recovery pass.**
 
-The production Site URL and the four exact redirects above were saved in the Supabase dashboard during setup. Actual email delivery and provider password/sender settings still require confirmation. Do not treat a successful build or a public settings response as successful signup/email delivery.
+Immediately before cutover, reconcile any new Supabase users, password changes, role changes and audit rows since the snapshot; keep Supabase signups/account changes quiet during this short final reconciliation. Import through trusted administrative tooling, parameterized SQL, and an encrypted temporary export; never commit hashes or secrets. Existing Better Auth credentials must not be overwritten by a retry. Do not copy Supabase sessions or recovery tokens.
 
-## Routes
-
-| Route | Access |
-| --- | --- |
-| `/`, `/overview`, `/how-it-works`, `/sectors`, `/privacy`, `/pilot` | Public marketing |
-| `/login`, `/signup`, `/forgot-password`, `/resend-confirmation` | Public auth forms |
-| `/auth/callback` | Exchanges one-time PKCE code; allowlisted destinations only |
-| `/reset-password` | Password form requires verified session; otherwise shows link recovery guidance |
-| `/dashboard`, `/dashboard/pilot`, `/dashboard/account` | Verified Supabase user required |
-| GET and POST `/api/postcode` | Independently verified user required; otherwise HTTP 401 |
-
-The root now renders the existing marketing overview. All existing marketing content is retained. Live verification and the interactive widget are in the dashboard. The widget uses a same-origin session; its demo publishable-key attribute is not an authorization credential. Third-party embedding is not enabled by this change.
-
-## Security and data behavior
-
-- Authorization uses `auth.getUser()`, not unverified cookie contents or `getSession()`.
-- Proxy refreshes cookies; dashboard, callback, and API responses are not publicly cacheable.
-- Server actions perform mutations and Next.js enforces origin checks. API origin checks remain in place.
-- Callback destinations are restricted to `/dashboard` and `/reset-password`.
-- Password recovery errors never count as sent emails. Unknown account reset requests receive generic acknowledgement from the provider/application.
-- Password updates attempt global refresh-session revocation and return to login. Existing access tokens can remain valid until their normal expiry.
-- Verification logs remain browser-local and are keyed by authenticated user ID. Old unscoped logs are not imported into another account.
-- No customer identity or profile table is introduced. Superadmin management uses a private role-audit schema. Add and test RLS policies before storing user data in public tables.
+After merge, verify the imported account login, superadmin directory, real signup/confirmation/resend/reset email, anonymous rejection, and role changes on production. Preserve the Supabase project and old Vercel variables until verified. A deployment rollback restores the old auth code, but any Neon-only accounts or password changes after cutover need reconciliation before rollback; there is no automatic dual write.
 
 ## Validation
 
-`npm test`: existing NIPOST tests plus auth flow unit tests covering validation, unconfirmed login, recovery, email failures, callback allowlisting and password update/session revocation.
+`npm test` runs the auth lifecycle against embedded PostgreSQL (PGlite): confirmation, imported bcrypt login, session reads, forged-cookie rejection, cross-origin rejection, reset token reuse prevention, session revocation, role escalation prevention, and audited administrator changes. No mail is sent. Other tests cover the permission matrix and NIPOST/widget behavior.
 
-`npm run build` and `npm run typecheck` validate the Next.js app.
-
-`npm run test:auth-http` starts the production build against a temporary local mock Supabase service. It checks public routes, anonymous and forged-cookie rejection, protected descendants, API 401 behavior and invalid callbacks. It does not create real Supabase users or send email.
-
-Live acceptance remains necessary after URL/email configuration: create an account using an inbox you control, confirm, sign in, reload the dashboard, sign out, request password recovery, change password, and verify the old password fails. Also test expired/consumed links and provider email rate limits.
-
-## Staff permissions
-
-See [submission/ACCESS.md](submission/ACCESS.md) for server-enforced application roles. `/dashboard/operations` and all four report endpoints independently check staff permissions; budget data is owner-only. Luqman’s requested superadmin account is provisioned; email confirmation is pending. Other roles require administrator assignment.
+`npm run typecheck`, `npm run build`, and `npm run test:auth-http` check the production build, public pages, protected routes, anonymous APIs, forged cookies, caching, and widget origins. These do not prove real email delivery or deployed account access.

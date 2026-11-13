@@ -1,6 +1,6 @@
 # PostCheck
 
-**Built on Nigeria's Postcode.** PostCheck is a NIPOST postcode address-verification platform for customer onboarding, built with Next.js 16 (App Router), React 19, TypeScript and Supabase Auth.
+**Built on Nigeria's Postcode.** PostCheck is a NIPOST postcode address-verification platform for customer onboarding, built with Next.js 16 (App Router), React 19, TypeScript and Neon PostgreSQL and Better Auth.
 
 Live demo: **https://postcheck-nine.vercel.app**
 
@@ -52,7 +52,7 @@ Account directory, role changes with a required reason, and the role-change audi
 | `/sectors` | Public | Before/after onboarding comparison and playbooks for all 8 national priority sectors |
 | `/pilot` | Public | Fintech and microfinance pilot plan and widget overview |
 | `/privacy` | Public | Nigeria Data Protection Act (NDPA) 2023 safeguards, verification scope and accessibility |
-| `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/resend-confirmation` | Public | Supabase email/password auth flows (see [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md)) |
+| `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/resend-confirmation` | Public | Better Auth email/password flows (see [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md)) |
 | `/dashboard` | Signed in | Address verification workspace and 4-check live acceptance runner (`API test suite`) |
 | `/dashboard/pilot` | Signed in | Live `<postcheck-address-widget>` sandbox with KYC handoff event viewer |
 | `/dashboard/account` | Signed in | Account details and sign-out |
@@ -69,9 +69,9 @@ Account directory, role changes with a required reason, and the role-change audi
 
 ## Authentication and roles
 
-Supabase email/password auth covers signup, email confirmation, login, resend confirmation, password recovery, account details and sign-out. Every protected route verifies the user server-side with `auth.getUser()`; cookie claims are never trusted. Before inviting pilot users, check the Supabase email settings in [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md).
+Better Auth covers signup, email confirmation, login, resend confirmation, password recovery, account details and sign-out. Protected routes validate sessions against Neon on the server; cookie claims are never trusted. Configure a verified email sender before inviting users; see [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md).
 
-Application roles live in Supabase `app_metadata.postcheck_role`, which users cannot edit. A missing role means `participant`; an unknown value fails closed as `disabled`.
+Application roles live in the server-controlled Neon `user.role` column. A missing role means `participant`; an unknown value fails closed as `disabled`.
 
 | Role | Verification / postcode API | Operations + KPI, access and checklist exports | Budget | Admin console |
 | --- | --- | --- | --- | --- |
@@ -83,7 +83,7 @@ Application roles live in Supabase `app_metadata.postcheck_role`, which users ca
 | `demo_editor` | No | No | No | No |
 | `disabled` | No | No | No | No |
 
-The superadmin console changes roles through security-definer RPCs using the caller's own session (no service-role key in the app). Every change needs a reason and is written to a private audit table; superadmins cannot be created or changed from the UI. Provisioning steps are in [docs/submission/ACCESS.md](docs/submission/ACCESS.md), and the schema is in `supabase/migrations/`.
+The superadmin console uses server-only transactions that recheck administrator access. Every role change requires a reason, appends an audit record, and revokes the target account’s sessions. Superadmins cannot be created or changed from the UI. See [authentication setup](docs/AUTHENTICATION.md) and [access policy](docs/submission/ACCESS.md).
 
 ---
 
@@ -138,7 +138,7 @@ npm run dev
    - Do not add quotes unless needed.
    - **Never** use a `NEXT_PUBLIC_` prefix.
    - Restart the development server after changing environment variables.
-3. Open [http://localhost:3000](http://localhost:3000). The verification tools are at `/dashboard` and need a confirmed Supabase account, so also set the Supabase variables in `.env.local`.
+3. Open [http://localhost:3000](http://localhost:3000). The verification tools are at `/dashboard` and need a confirmed Better Auth account, so set the database, authentication and SMTP variables in `.env.local`.
 
 Without a configured test key, the workspace displays **Setup pending** and never fabricates API responses.
 
@@ -222,9 +222,9 @@ npm start
 - `app/api/widget/route.ts` & `lib/widget.ts` — Public widget endpoint, origin allowlist and rate limiter
 - `app/api/operations/[report]/route.ts` & `lib/pilot-plan.ts` — Staff CSV exports and pilot plan data
 - `app/(protected)/dashboard/*` — Signed-in workspace, pilot, account, operations and admin pages
-- `app/(auth)/*`, `app/auth/*` & `lib/supabase/*` — Supabase auth pages, server actions and clients
+- `app/(auth)/*`, `app/auth/*` & `lib/auth/*` — Better Auth pages, handlers and server session validation
 - `lib/access.ts` — Role parsing and permission checks
-- `supabase/migrations/` & `supabase/tests/` — Superadmin RPCs, audit table and SQL permission tests
+- `migrations/` — Neon authentication and audit schema; `supabase/` retains historical rollback reference
 - `public/widget/v1/postcheck-embed.js` — Embeddable `<postcheck-address-widget>` custom element
 - `app/sitemap.ts` & `app/robots.ts` — Static `/sitemap.xml` and `/robots.txt` generators
 - `public/llms.txt` — LLM documentation index (`/llms.txt`)

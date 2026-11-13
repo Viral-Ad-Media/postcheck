@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { roleFor, canViewOperations, isSuperadmin } from '@/lib/access';
-import { currentUser } from '@/lib/supabase/server';
+import { currentUser } from '@/lib/auth/server';
 import { AccountMenu } from '@/components/account-menu';
 export default async function Account() {
   const user = await currentUser();
