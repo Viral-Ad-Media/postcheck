@@ -1,6 +1,6 @@
 # Recording script — 2:30
 
-Use 1920×1080, browser at 100%, notifications disabled, synthetic data only. Record only the app tab; do not show inboxes, environment settings, API keys, passwords or Supabase administration. Prepare a verified test account in advance. A signed-in demo does not establish that signup/recovery has been tested.
+Use 1920×1080, browser at 100%, notifications disabled, synthetic data only. Record only the app tab; do not show inboxes, environment settings, API keys, passwords or Neon administration. Prepare a verified test account in advance. A signed-in demo does not establish that signup/recovery has been tested.
 
 | Time | Screen / action | Narration |
 | --- | --- | --- |

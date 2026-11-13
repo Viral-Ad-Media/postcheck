@@ -1,0 +1,46 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+import {hash} from 'bcryptjs';
+import {getMigrations} from 'better-auth/db/migration';
+import {createAuth} from '../lib/auth/core.ts';
+import {adminSnapshot,setRole} from '../lib/admin.ts';
+import {testPool} from './postgres.mjs';
+const origin='http://localhost:3000';
+test('real PostgreSQL auth lifecycle, imported bcrypt, role protection and revocation',async()=>{
+ const pool=await testPool();const mail=[];
+ const auth=createAuth(pool,origin,'integration-secret-only-at-least-thirty-two-characters',async(to,url,purpose)=>{mail.push({to,url,purpose});});
+ const request=async(path,body,cookie='',requestOrigin=origin)=>auth.handler(new Request(origin+'/api/auth/'+path,{method:body?'POST':'GET',headers:{...(body?{'content-type':'application/json'}:{}),origin:requestOrigin,cookie,'x-forwarded-for':'127.0.0.1'},...(body?{body:JSON.stringify(body)}:{})}));
+ const cookies=r=>r.headers.getSetCookie().map(s=>s.split(';')[0]).join('; ');
+ try{
+  await(await getMigrations(auth.options)).runMigrations();
+  for(const sql of (await readFile(new URL('../migrations/002-role-audit.sql',import.meta.url),'utf8')).split(';').filter(s=>s.trim()))await pool.query(sql);
+  const email='test@example.com',password='test-passphrase-very-long';
+  let r=await request('sign-up/email',{email,password,name:'Test',role:'superadmin',callbackURL:'/login?confirmed=success'});assert.equal(r.status,200,await r.clone().text());
+  const user=(await pool.query('SELECT * FROM "user" WHERE email=$1',[email])).rows[0];assert.equal(user.role,'participant');assert.equal(user.emailVerified,false);
+  r=await request('sign-in/email',{email,password});assert.equal(r.status,403);
+  assert.equal(mail[0].purpose,'verify');r=await auth.handler(new Request(mail[0].url));assert.ok([200,302].includes(r.status));
+  r=await request('sign-in/email',{email,password});assert.equal(r.status,200,await r.clone().text());const session=cookies(r);assert.ok(session);
+  r=await request('get-session',null,session);assert.equal((await r.json()).user.id,user.id);
+  r=await request('get-session',null,'better-auth.session_token=forged.signature');assert.equal(await r.json(),null);
+  r=await request('update-user',{name:'Attacker'},session,'https://evil.example');assert.equal(r.status,403);
+  r=await request('update-user',{role:'superadmin'},session);assert.equal((await pool.query('SELECT role FROM "user" WHERE id=$1',[user.id])).rows[0].role,'participant');
+  await request('request-password-reset',{email,redirectTo:'/reset-password'});const reset=mail.findLast(m=>m.purpose==='reset');assert.ok(reset);
+  const redirect=await auth.handler(new Request(reset.url));const token=new URL(redirect.headers.get('location'),origin).searchParams.get('token');assert.ok(token);
+  r=await request('reset-password',{token,newPassword:'a-new-secure-passphrase'});assert.equal(r.status,200,await r.clone().text());
+  assert.equal(await(await request('get-session',null,session)).json(),null);
+  assert.notEqual((await request('reset-password',{token,newPassword:'reused-token-password'})).status,200);
+  const admin=randomUUID();await pool.query('INSERT INTO "user"(id,name,email,"emailVerified",role) VALUES($1,$2,$3,true,$4)',[admin,'Imported Admin','admin@example.com','superadmin']);
+  await pool.query('INSERT INTO "account"(id,"accountId","providerId","userId",password,"updatedAt") VALUES($1,$2,$3,$2,$4,now())',[randomUUID(),admin,'credential',await hash(password,10)]);
+  r=await request('sign-in/email',{email:'admin@example.com',password});assert.equal(r.status,200,await r.clone().text());assert.equal((await r.json()).user.id,admin);
+  assert.equal((await adminSnapshot(pool,admin,0)).total,2);
+  await assert.rejects(()=>adminSnapshot(pool,user.id,0));await assert.rejects(()=>setRole(pool,admin,admin,'participant','cannot change myself'));await assert.rejects(()=>setRole(pool,user.id,admin,'owner','unauthorized change'));await assert.rejects(()=>setRole(pool,admin,user.id,'superadmin','cannot grant superadmin'));
+  r=await request('sign-in/email',{email,password:'a-new-secure-passphrase'});assert.equal(r.status,200);const newSession=cookies(r);
+  await setRole(pool,admin,user.id,'disabled','Disable integration fixture');assert.equal(await(await request('get-session',null,newSession)).json(),null);assert.equal((await adminSnapshot(pool,admin,0)).audit.length,1);
+  r=await request('sign-in/email',{email,password:'a-new-secure-passphrase'});assert.equal(r.status,200);
+  r=await request('sign-in/email',{email,password:'a-new-secure-passphrase'});assert.equal(r.status,429,'Shared database rate limit blocks the sixth login attempt');
+  const adminSession=cookies(await auth.handler(new Request(origin+'/api/auth/sign-in/email',{method:'POST',headers:{'content-type':'application/json',origin,'x-forwarded-for':'127.0.0.2'},body:JSON.stringify({email:'admin@example.com',password})})));
+  r=await request('sign-out',{},adminSession);assert.equal(r.status,200);assert.equal(await(await request('get-session',null,adminSession)).json(),null);
+ }finally{await pool.end();}
+});

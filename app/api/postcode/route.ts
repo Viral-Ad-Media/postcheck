@@ -1,6 +1,6 @@
 import 'server-only';
 import { roleFor, canVerify } from '@/lib/access';
-import { currentUser } from '@/lib/supabase/server';
+import { currentUser } from '@/lib/auth/server';
 import { callNipost, runBatch, runSuite, type Operation } from '@/lib/nipost';
 
 export const dynamic = 'force-dynamic';

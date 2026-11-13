@@ -1,6 +1,8 @@
+import { adminSnapshot } from '@/lib/admin';
+import { getPool } from '@/lib/db';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { currentUser, createClient } from '@/lib/supabase/server';
+import { currentUser } from '@/lib/auth/server';
 import { isSuperadmin, roleFor } from '@/lib/access';
 import { AccountMenu } from '@/components/account-menu';
 import { AdminRoleForm } from '@/components/admin-role-form';
@@ -12,7 +14,7 @@ export default async function Admin({searchParams}:{searchParams:Promise<{page?:
  const {page:raw}=await searchParams;
  const page=/^\d+$/.test(raw||'')?Math.min(Number(raw),100000):0;
  let snapshot:AdminSnapshot|null=null;
- try {const {data,error}=await (await createClient()).rpc('postcheck_admin_snapshot',{page_number:page});if(!error && data) snapshot=data as AdminSnapshot;} catch {}
+ try {snapshot=await adminSnapshot(getPool(),user.id,page) as AdminSnapshot;} catch {}
  return <div className="pc-auth-shell"><header className="pc-auth-header"><Link href="/dashboard">PostCheck.</Link><AccountMenu email={user.email}/></header><main className="pc-ops"><span className="pc-auth-eyebrow">SUPERADMIN</span><h1>Manage PostCheck</h1><p>Signed in as {user.email}. Review accounts, manage application roles, and oversee the pilot.</p><p><Link href="/dashboard/operations">Pilot KPIs, budget and access matrix →</Link></p>
  {!snapshot ? <section role="alert"><h2>Account directory unavailable</h2><p>Unable to load administration data. Confirm the database migration and connection, then reload. No account changes have been made.</p></section> : <>
  <div className="pc-admin-grid"><div className="pc-admin-card">Total accounts<strong>{snapshot.total}</strong></div><div className="pc-admin-card">Email confirmed<strong>{snapshot.confirmed}</strong></div><div className="pc-admin-card">Application access disabled<strong>{snapshot.disabled}</strong></div></div>
